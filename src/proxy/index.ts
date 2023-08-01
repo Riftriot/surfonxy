@@ -178,7 +178,7 @@ export const createProxiedResponse = async (to: string, session: Session, reques
                     }
                   };
                 }
-                else {
+                else if (reg.active) {
                   refresh();
                 }
               })
