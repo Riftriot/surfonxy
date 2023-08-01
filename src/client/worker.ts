@@ -26,36 +26,37 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const original_request = event.request;
-  const original_url = new URL(original_request.url);
 
-  // We leave the request untouched when it's something we don't need.
-  if (original_url.protocol === "chrome-extension:" || original_url.search.includes("__surfonxy_url")) {
-    event.respondWith(fetch(original_request));
-    return;
+  try {
+    const original_url = new URL(original_request.url);
+  
+    // We leave the request untouched when it's something we don't need.
+    if (original_url.protocol === "chrome-extension:" || original_url.search.includes("__surfonxy_url")) {
+      event.respondWith(fetch(original_request));
+      return;
+    }
+  
+    // When the origin is the same, that means that it should be on the `currentlyProxyingURL` origin.
+    const patched_origin = original_url.origin === proxyOrigin
+      ? currentlyProxyingURL.origin
+      : original_url.origin
+  
+    const patched_url = new URL(original_url.pathname + original_url.search, proxyOrigin);
+    patched_url.searchParams.set("__surfonxy_url", btoa(patched_origin))
+    patched_url.searchParams.set("__surfonxy_ready", "1"); // Always "1" since SW is installed !
+  
+    const patched_request = new Request(patched_url, {
+      body: original_request.body,
+      method: original_request.method,
+      headers: original_request.headers,
+      redirect: original_request.redirect,
+      credentials: original_request.credentials,
+    });
+  
+    console.info("[service-worker]:", "original", original_request, "patched", patched_request);
+    event.respondWith(fetch(patched_request));
   }
-
-  // When the origin is the same, that means that it should be on the `currentlyProxyingURL` origin.
-  const patched_origin = original_url.origin === proxyOrigin
-    ? currentlyProxyingURL.origin
-    : original_url.origin
-
-  const patched_url = new URL(original_url.pathname + original_url.search, proxyOrigin);
-  patched_url.searchParams.set("__surfonxy_url", btoa(patched_origin))
-  patched_url.searchParams.set("__surfonxy_ready", "1"); // Always "1" since SW is installed !
-
-  const patched_request = new Request(patched_url, {
-    body: original_request.body,
-    headers: original_request.headers,
-    credentials: original_request.credentials,
-    method: original_request.method,
-    redirect: original_request.redirect,
-    cache: original_request.cache,
-    integrity: original_request.integrity,
-    keepalive: original_request.keepalive,
-    mode: original_request.mode,
-    signal: original_request.signal
-  });
-
-  console.info("[service-worker]:", "original", original_request, "patched", patched_request);
-  event.respondWith(fetch(patched_request));
+  catch (error) {
+    console.error("[service-worker]:", error, original_request)
+  }
 });
