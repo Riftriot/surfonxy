@@ -16,13 +16,10 @@ const createUniqueSessionID = (): string => {
 
 class Session {
   public cookies: CookieJar;
-  /** Tokens allowed to access this session. */
-  public auth_tokens: string[];
   public id: string;
 
-  constructor (authTokenOfCreator: string, id?: string) {
-    this.auth_tokens = [authTokenOfCreator];
-    this.id = id ?? createUniqueSessionID();
+  constructor () {
+    this.id = createUniqueSessionID();
     this.cookies = new CookieJar();
   }
 
@@ -47,8 +44,8 @@ class Session {
  * Creates a new session and store
  * it in the `sessions` object.
  */
-export const createSession = (authTokenOfCreator: string): Session => {
-  const session = new Session(authTokenOfCreator);
+export const createSession = (): Session => {
+  const session = new Session();
   sessions[session.id] = session;
 
   return session;
