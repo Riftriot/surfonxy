@@ -15,6 +15,8 @@ const transformUrl = (url_r: string) => {
   
   // If it was already transformed, don't touch it.
   if (url.includes("__surfonxy_url=")) return url;
+  // Don't touch [data URLs](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+  if (url.startsWith("data:")) return url;
   
   if (url.startsWith("/")) {
     const url_object = new URL(url, BASE_URL.origin);
@@ -22,7 +24,7 @@ const transformUrl = (url_r: string) => {
     url_object.searchParams.set("__surfonxy_ready", "1");  
     return url_object.pathname + url_object.search;
   }
-    
+
   const url_object = new URL(url);
   const base_url_obj = new URL(url_object.pathname + url_object.search, BASE_URL.origin);
   base_url_obj.searchParams.set("__surfonxy_url", btoa(url_object.origin));  
