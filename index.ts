@@ -1,8 +1,7 @@
 import { Elysia } from "elysia";
 import { cookie } from '@elysiajs/cookie'
 
-import Session, { createSession, sessions } from "./src/session";
-import { makeProxiedRequestTo } from "./src/proxy";
+import { sessions, Session, createProxiedResponse, createSession } from "./src";
 
 const AUTH_COOKIE_NAME = "__surfskip_token";
 const SESSION_ID_COOKIE_NAME = "__surfskip_session_id";
@@ -70,7 +69,7 @@ new Elysia()
     url.pathname = new URL(request.url).pathname;
     url.search = new URL(request.url).search;
 
-    return makeProxiedRequestTo(url.href, session, request);
+    return createProxiedResponse(url.href, session, request);
   })
   .listen(8000, () => {
     console.info("running on port 8000.");

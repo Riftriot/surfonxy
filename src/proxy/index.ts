@@ -77,7 +77,7 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   return $.html();
 }
 
-export const makeProxiedRequestTo = async (to: string, session: Session, request: Request) => {
+export const createProxiedResponse = async (to: string, session: Session, request: Request) => {
   const url = new URL(to);
   const request_headers = new Headers(request.headers);
   
