@@ -1,6 +1,8 @@
 import type Session from "../session";
 import * as cheerio from 'cheerio';
 
+import { SURFONXY_GENERATED_ATTRIBUTE } from "../utils/constants";
+
 /**
  * Stores the cookies of the response in our session's
  * `cookies` object. We then remove every `set-cookie` header
@@ -73,7 +75,20 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   //   item.attribs.action = transformUrl(item.attribs.action);
   // });
 
-  $("head").append("<script>" + scriptContentCache.replace("<<BASE_URL>>", base_url.href) + "</script>");
+
+  // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
+  // > Rewrites every relative URLs in the DOM.
+  // > There can be only one `<base>` element.
+  const base_element_href = $("head base").prop("href");
+  if (!base_element_href) {
+    $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
+  }
+
+  // Add our client script to the page.
+  $("head").append(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
+    ${scriptContentCache.replace("<<BASE_URL>>", base_url.href)}
+  </script>`);
+
   return $.html();
 }
 
