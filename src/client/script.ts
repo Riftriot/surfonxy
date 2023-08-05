@@ -2,10 +2,13 @@
 
 // To be replaced by Bun.
 const BASE_URL = new URL("<<BASE_URL>>");
+const PROXY_ORIGIN = window.location.origin;
+
+window.origin = BASE_URL.origin;
 
 // Add this to prevent unregister.
 window.addEventListener('load', () => {
-  navigator.serviceWorker.register(`/surfonxy.js?__surfonxy_url=${btoa(BASE_URL.origin)}`);
+  navigator.serviceWorker.register(new URL(`/surfonxy.js`, PROXY_ORIGIN));
 });
 
 const transformUrl = (url_r: string) => {
@@ -57,25 +60,44 @@ XMLHttpRequest.prototype.open = function() {
   xmlHttpRequestOpenOriginal.apply(this, arguments);
 };
 
+const formSubmitOriginal = HTMLFormElement.prototype.submit;
+HTMLFormElement.prototype.submit = function() {
+  const url_parameter = document.createElement("input");
+  url_parameter.setAttribute("hidden", "true");
+  url_parameter.setAttribute("name", "__surfonxy_url");
+  url_parameter.setAttribute("value", btoa(BASE_URL.origin));
+  
+  const ready_parameter = document.createElement("input");
+  ready_parameter.setAttribute("hidden", "true");
+  ready_parameter.setAttribute("name", "__surfonxy_ready");
+  ready_parameter.setAttribute("value", "1");
+
+  this.appendChild(url_parameter);
+  this.appendChild(ready_parameter);
+
+  // @ts-expect-error
+  formSubmitOriginal.apply(this, arguments);
+}
+
 const prototypesToFix = {
-    HTMLAnchorElement: ['href'],
-    HTMLAreaElement: ['href'],
-    HTMLBaseElement: ['href'],
-    HTMLEmbedElement: ['src'],
-    HTMLFormElement: ['action'],
-    HTMLFrameElement: ['src'],
-    HTMLIFrameElement: ['src'],
-    HTMLImageElement: ['src'],
-    HTMLInputElement: ['src'],
-    HTMLLinkElement: ['href'],
-    HTMLMediaElement: ['src'],
-    HTMLModElement: ['cite'],
-    HTMLObjectElement: ['data'],
-    HTMLQuoteElement: ['cite'],
-    HTMLScriptElement: ['src'],
-    HTMLSourceElement: ['src'],
-    HTMLTrackElement: ['src'],
-    Request: ["url"]
+  HTMLAnchorElement: ['href'],
+  HTMLAreaElement: ['href'],
+  HTMLBaseElement: ['href'],
+  HTMLEmbedElement: ['src'],
+  HTMLFormElement: ['action'],
+  HTMLFrameElement: ['src'],
+  HTMLIFrameElement: ['src'],
+  HTMLImageElement: ['src'],
+  HTMLInputElement: ['src'],
+  HTMLLinkElement: ['href'],
+  HTMLMediaElement: ['src'],
+  HTMLModElement: ['cite'],
+  HTMLObjectElement: ['data'],
+  HTMLQuoteElement: ['cite'],
+  HTMLScriptElement: ['src'],
+  HTMLSourceElement: ['src'],
+  HTMLTrackElement: ['src'],
+  Request: ["url"]
 } as const;
 
 for (const classElementRaw in prototypesToFix) {
