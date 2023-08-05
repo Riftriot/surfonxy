@@ -79,10 +79,10 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.
   // > There can be only one `<base>` element.
-  const base_element_href = $("head base").prop("href");
-  if (!base_element_href) {
-    $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
-  }
+  // const base_element_href = $("head base").prop("href");
+  // if (!base_element_href) {
+  //   $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
+  // }
 
   // Add our client script to the page.
   $("head").append(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
@@ -177,7 +177,7 @@ export const createProxiedResponse = async (to: string, session: Session, reques
         <html>
           <head>
             <script>
-              navigator.serviceWorker.register("/surfonxy.js?__surfonxy_url=${btoa(url.origin)}")
+              navigator.serviceWorker.register("/surfonxy.js")
               .then(reg => {
                 const refresh = () => {
                   const url = new URL(window.location.href);
