@@ -17,10 +17,116 @@ window.addEventListener('load', () => {
   );
 });
 
-const transformUrl = (url_r: string) => {
+class SurfonxyLocation {
+  private proxyUrl: URL
+
+  constructor () {
+    this.proxyUrl = BASE_URL;
+  }
+
+  get hash (): string {
+    return window.location.hash;
+  }
+  set hash (value: string) {
+    window.location.hash = value;
+  }
+
+  get host (): string {
+    return this.proxyUrl.host;
+  }
+  set host (value: string) {
+    this.proxyUrl.host = value;
+    this.assign(this.proxyUrl);
+  }
+
+  get hostname () {
+    return this.proxyUrl.hostname;
+  }
+  set hostname (value: string) {
+    this.proxyUrl.hostname = value;
+    this.assign(this.proxyUrl);
+  }
+
+  get href (): string {
+    return this.proxyUrl.href;
+  }
+  set href (value: string) {
+    this.assign(value);
+  }
+
+  get pathname () {
+    return window.location.pathname;
+  }
+  set pathname (value: string) {
+    window.location.pathname = value;
+  }
+
+  get port (): string {
+    return this.proxyUrl.port;
+  }
+  set port (value: string) {
+    this.proxyUrl.port = value;
+    this.assign(this.proxyUrl);
+  }
+
+  get protocol (): string {
+    return this.proxyUrl.protocol;
+  }
+  set protocol (value: string) {
+    this.proxyUrl.protocol = value.replace(/:$/g, "");
+    this.assign(this.proxyUrl);
+  }
+
+  get search (): string {
+    return this.proxyUrl.search;
+  }
+  set search (value: string) {
+    this.proxyUrl.search = value;
+    this.assign(this.proxyUrl);
+  }
+
+  get username (): string {
+    return this.proxyUrl.username;
+  }
+  set username (value: string) {
+    // No operation needed.
+  }
+
+  get password (): string {
+    return this.proxyUrl.password;
+  }
+  set password (value: string) {
+    // No operation needed.
+  }
+
+  assign (url: string | URL): void {
+    window.location.assign(
+      transformUrl(url)
+    );
+  }
+
+  /**
+   * @param forceReload - Only supported in Firefox.
+   */
+  reload (forceReload: boolean): void {
+    // @ts-expect-error
+    window.location.reload(forceReload);
+  } 
+
+  replace (url: string | URL): void {
+    window.location.replace(
+      transformUrl(url)
+    );
+  }
+}
+
+// @ts-expect-error
+// Add the location proxy to the window.
+window.__sf_location = new SurfonxyLocation();
+
+const transformUrl = (url_r: string | URL) => {
   if (!url_r) return url_r;
-  // @ts-expect-error
-  const url = url_r instanceof TrustedScriptURL ? url_r.toString() : (url_r as string);
+  const url = url_r.toString();
   
   // If it was already transformed, don't touch it.
   if (url.includes(`${SURFONXY_URI_ATTRIBUTES.URL}=`)) return url;
