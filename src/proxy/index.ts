@@ -1,7 +1,30 @@
 import type Session from "../session";
 import * as cheerio from 'cheerio';
 
-import { SURFONXY_GENERATED_ATTRIBUTE } from "../utils/constants";
+import { SURFONXY_GENERATED_ATTRIBUTE, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, SURFONXY_URI_ATTRIBUTES, createSurfonxyServiceWorkerPath } from "../utils/constants";
+
+let workerContentCache: string | undefined;
+/** Builds the service worker for the proxy. */
+const getServiceWorker = async () => {
+  if (!workerContentCache) {
+    const result = await Bun.build({
+      entrypoints: [Bun.fileURLToPath(new URL("../client/worker.ts", import.meta.url))],
+      target: "browser",
+      minify: false
+    });
+
+    workerContentCache = await result.outputs[0].text();
+  }
+
+  const headers = new Headers();
+  headers.set("content-type", "text/javascript");
+
+  return new Response(workerContentCache, {
+    status: 200,
+    headers
+  });
+}
+
 
 /**
  * Stores the cookies of the response in our session's
@@ -41,7 +64,7 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
     const result = await Bun.build({
       entrypoints: [Bun.fileURLToPath(new URL("../client/script.ts", import.meta.url))],
       target: "browser",
-      minify: true
+      minify: false
     });
 
     scriptContentCache = await result.outputs[0].text();
@@ -92,12 +115,33 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   return $.html();
 }
 
-export const createProxiedResponse = async (to: string, session: Session, request: Request) => {
-  const url = new URL(to);
+export const createProxiedResponse = async (request: Request, session: Session): Promise<Response> => {
+  /** The original URL, from the client. */
+  const request_proxy_url = new URL(request.url);
+  if (request_proxy_url.pathname === "/surfonxy.js") {
+    const sw = await getServiceWorker();
+    return sw;
+  }
+
+  const encoded_request_url = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+  if (!encoded_request_url) {
+    throw new Error(`No URL provided in the "${SURFONXY_URI_ATTRIBUTES.URL}" search parameter.`);
+  }
+
+  let request_url: URL;
+  try {
+    const decoded_request_url = atob(encoded_request_url)
+    request_url = new URL(request_proxy_url.pathname + request_proxy_url.search, decoded_request_url);
+  }
+  catch (error) {
+    // TODO: Add a better error handling, with custom Error class.
+    throw new Error("The provided URL is either...\n\t- Not an origin ;\n\t- Not a base64 encoded value.\n...or both, maybe.");
+  }
+
   const request_headers = new Headers(request.headers);
   
   // We get the cookies from our session.
-  const cookies = session.getCookiesAsStringFor(url.hostname, url.pathname);
+  const cookies = session.getCookiesAsStringFor(request_url.hostname, request_url.pathname);
   request_headers.set("cookie", cookies);
 
   // NOTE: This header can cause issues, see if it changes anything to keep it or no.
@@ -108,23 +152,19 @@ export const createProxiedResponse = async (to: string, session: Session, reques
   // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
   request_headers.delete("accept-encoding"); 
 
-  url.searchParams.delete("__surfonxy_url");
-  url.searchParams.delete("__surfonxy_ready");
+  request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+  request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
-  const response = await fetch(url, {
+  const response = await fetch(request_url, {
     method: request.method,
     headers: request_headers,
     body: request.body,
-    credentials: request.credentials,
-    redirect: "manual",
-    cache: request.cache,
-    keepalive: request.keepalive,
-    verbose: false
+    redirect: "manual"
   });
   
   const response_headers = registerCookies(response, session);
 
-  const giveNewResponse = (body: ReadableStream<any> | null) => new Response(body, {
+  const giveNewResponse = (body: ReadableStream<Uint8Array> | string | null) => new Response(body, {
     headers: response_headers,
 
     // Just give the actual values.
@@ -138,8 +178,8 @@ export const createProxiedResponse = async (to: string, session: Session, reques
     if (redirect_to) {
       const redirection_url = new URL(redirect_to);
       const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, new URL(request.url).origin);
-      new_redirection_url.searchParams.set("__surfonxy_url", btoa(redirection_url.origin));
-      new_redirection_url.searchParams.delete("__surfonxy_ready") // If there was one...
+      new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(redirection_url.origin));
+      new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
 
       response_headers.set("location", new_redirection_url.href);
     }
@@ -148,40 +188,27 @@ export const createProxiedResponse = async (to: string, session: Session, reques
   // When the content is HTML, we have to tweak the document a little...
   const contentType = response_headers.get("content-type");
   if (contentType?.includes("text/html")) {
-    const isServiceWorkerReady = request.url.includes("__surfonxy_ready=1");
-
-    const stringToStream = (str: string) => {
-      const buffer = Buffer.from(str);
-      const chunkSize = 1024;
-
-      return new ReadableStream({
-        start(controller) {
-          for (let i = 0; i < buffer.length; i += chunkSize) {
-            controller.enqueue(buffer.subarray(i, i + chunkSize));
-          }
-
-          controller.close();
-        },
-      });
-    }
+    const isServiceWorkerReady = request.url.includes(`${SURFONXY_URI_ATTRIBUTES.READY}=1`);
 
     if (isServiceWorkerReady) {
-      let content = await Bun.readableStreamToText(response.body as ReadableStream);
-      content = await tweakHTML(content, session.id, url);
+      let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
+      content = await tweakHTML(content, session.id, request_url);
 
-      return giveNewResponse(stringToStream(content));
+      return giveNewResponse(content);
     }
     else {
-      return giveNewResponse(stringToStream(`
+      return giveNewResponse(`
         <!DOCTYPE html>
         <html>
           <head>
             <script>
-              navigator.serviceWorker.register("/surfonxy.js")
+              localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${session.id}");
+
+              navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(session.id)}")
               .then(reg => {
                 const refresh = () => {
                   const url = new URL(window.location.href);
-                  url.searchParams.set("__surfonxy_ready", "1");
+                  url.searchParams.set("${SURFONXY_URI_ATTRIBUTES.READY}", "1");
                   window.location.href = url.href;
                 }
 
@@ -210,9 +237,9 @@ export const createProxiedResponse = async (to: string, session: Session, reques
             <p>You'll be automatically redirected to the proxied page when the worker has been activated.</p>
           </body>
         </html>
-      `))
+      `)
     }
   }
 
-  return giveNewResponse(response.body);
+  return giveNewResponse(response.clone().body as ReadableStream<Uint8Array>);
 }
