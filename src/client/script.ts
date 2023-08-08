@@ -1,14 +1,20 @@
 /// <reference lib="DOM" />
 
+import { SURFONXY_URI_ATTRIBUTES, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, createSurfonxyServiceWorkerPath } from "../utils/constants";
+
 // To be replaced by Bun.
 const BASE_URL = new URL("<<BASE_URL>>");
 const PROXY_ORIGIN = window.location.origin;
+// TODO: Should do a verification for the session ID, if exists or not.
+const PROXY_SESSION_ID = localStorage.getItem(SURFONXY_LOCALSTORAGE_SESSION_ID_KEY) as string;
 
 window.origin = BASE_URL.origin;
 
 // Add this to prevent unregister.
 window.addEventListener('load', () => {
-  navigator.serviceWorker.register(new URL(`/surfonxy.js`, PROXY_ORIGIN));
+  navigator.serviceWorker.register(
+    new URL(createSurfonxyServiceWorkerPath(PROXY_SESSION_ID), PROXY_ORIGIN)
+  );
 });
 
 const transformUrl = (url_r: string) => {
@@ -17,21 +23,21 @@ const transformUrl = (url_r: string) => {
   const url = url_r instanceof TrustedScriptURL ? url_r.toString() : (url_r as string);
   
   // If it was already transformed, don't touch it.
-  if (url.includes("__surfonxy_url=")) return url;
+  if (url.includes(`${SURFONXY_URI_ATTRIBUTES.URL}=`)) return url;
   // Don't touch [data URLs](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
   if (url.startsWith("data:")) return url;
   
   if (url.startsWith("/")) {
     const url_object = new URL(url, BASE_URL.origin);
-    url_object.searchParams.set("__surfonxy_url", btoa(BASE_URL.origin));  
-    url_object.searchParams.set("__surfonxy_ready", "1");  
+    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));  
+    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");  
     return url_object.pathname + url_object.search;
   }
 
   const url_object = new URL(url);
   const base_url_obj = new URL(url_object.pathname + url_object.search, BASE_URL.origin);
-  base_url_obj.searchParams.set("__surfonxy_url", btoa(url_object.origin));  
-  url_object.searchParams.set("__surfonxy_ready", "1");  
+  base_url_obj.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url_object.origin));  
+  base_url_obj.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");  
 
   return base_url_obj.pathname + base_url_obj.search;
 }
@@ -64,12 +70,12 @@ const formSubmitOriginal = HTMLFormElement.prototype.submit;
 HTMLFormElement.prototype.submit = function() {
   const url_parameter = document.createElement("input");
   url_parameter.setAttribute("hidden", "true");
-  url_parameter.setAttribute("name", "__surfonxy_url");
+  url_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.URL);
   url_parameter.setAttribute("value", btoa(BASE_URL.origin));
   
   const ready_parameter = document.createElement("input");
   ready_parameter.setAttribute("hidden", "true");
-  ready_parameter.setAttribute("name", "__surfonxy_ready");
+  ready_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.READY);
   ready_parameter.setAttribute("value", "1");
 
   this.appendChild(url_parameter);
@@ -103,7 +109,7 @@ const prototypesToFix = {
 for (const classElementRaw in prototypesToFix) {
   const classElement = classElementRaw as keyof typeof prototypesToFix;
 
-  for (const attr of prototypesToFix[classElement ]) {
+  for (const attr of prototypesToFix[classElement]) {
     if (!window[classElement]) {
       console.warn('unexpected unsupported element class ' + classElement);
       continue;
@@ -114,11 +120,17 @@ for (const classElementRaw in prototypesToFix) {
     const originalSet = descriptor.set;
 
     descriptor.set = function (e) {
+      if (classElement === "HTMLIFrameElement") {
+        console.log(e, transformUrl(e));
+      }
       e = transformUrl(e);
       return originalSet?.call(this, e);
     };
 
     descriptor.get = function () {
+      if (classElement === "HTMLIFrameElement") {
+        console.log(this, arguments);
+      }
       return transformUrl(originalGet?.call(this));
     };
 

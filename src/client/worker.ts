@@ -3,6 +3,9 @@
 import {} from "./worker"; // Useless import to prevent typing issues.
 declare const self: ServiceWorkerGlobalScope;
 
+import { SURFONXY_URI_ATTRIBUTES } from "../utils/constants";
+
+
 /** Origin to replace with in patched requests. */
 let proxyOrigin: string;
 let currentlyProxyingURL: URL;
@@ -42,12 +45,12 @@ self.addEventListener("fetch", (event) => {
       if (client?.url) {
         const url = new URL(client.url);
         currentlyProxyingURL = new URL(url.pathname + url.search,
-          atob(url.searchParams.get("__surfonxy_url") as string)
+          atob(url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL) as string)
         );
       }
     
       // We leave the request untouched when it's something we don't need.
-      if (original_url.protocol === "chrome-extension:" || original_url.search.includes("__surfonxy_url")) {
+      if (original_url.protocol === "chrome-extension:" || original_url.search.includes(SURFONXY_URI_ATTRIBUTES.URL)) {
         return fetch(original_request);
       }
 
@@ -57,8 +60,8 @@ self.addEventListener("fetch", (event) => {
         : original_url.origin
     
       const patched_url = new URL(original_url.pathname + original_url.search, proxyOrigin);
-      patched_url.searchParams.set("__surfonxy_url", btoa(patched_origin))
-      patched_url.searchParams.set("__surfonxy_ready", "1"); // Always "1" since SW is installed !
+      patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(patched_origin))
+      patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
     
       const patched_request = new Request(patched_url, {
         body: original_request.body,
