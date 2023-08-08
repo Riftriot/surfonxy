@@ -6,14 +6,14 @@
     "@types/cookiejar": "^2.1.2",
     "@types/trusted-types": "^2.0.3",
     "@types/urijs": "^1.19.19",
-    "bun-types": "latest",
+    "bun-types": "^0.7.3",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@elysiajs/cookie": "^0.5.2",
+    "@elysiajs/cookie": "^0.6.0",
     "cheerio": "^1.0.0-rc.12",
     "cookiejar": "^2.1.4",
-    "elysia": "^0.5.25",
+    "elysia": "^0.6.3",
     "js-base64": "^3.7.5",
     "urijs": "^1.19.11"
   }
