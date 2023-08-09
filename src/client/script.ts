@@ -99,10 +99,18 @@ class SurfonxyLocation {
     // No operation needed.
   }
 
+  get origin () {
+    return this.proxyUrl.origin;
+  }
+
   assign (url: string | URL): void {
     window.location.assign(
       transformUrl(url)
     );
+  }
+
+  toString (): string {
+    return this.proxyUrl.href;
   }
 
   /**
@@ -123,6 +131,9 @@ class SurfonxyLocation {
 // @ts-expect-error
 // Add the location proxy to the window.
 window.__sf_location = new SurfonxyLocation();
+// @ts-expect-error
+// Proxies the window location in the document.
+document.__sf_location = window.__sf_location;
 
 const transformUrl = (url_r: string | URL) => {
   if (!url_r) return url_r;
@@ -216,28 +227,29 @@ for (const classElementRaw in prototypesToFix) {
   const classElement = classElementRaw as keyof typeof prototypesToFix;
 
   for (const attr of prototypesToFix[classElement]) {
-    if (!window[classElement]) {
-      console.warn('unexpected unsupported element class ' + classElement);
-      continue;
-    }
+    if (!window[classElement]) continue;
 
     const descriptor = Object.getOwnPropertyDescriptor(window[classElement].prototype, attr) as PropertyDescriptor;
     const originalGet = descriptor.get;
     const originalSet = descriptor.set;
 
-    descriptor.set = function (e) {
-      if (classElement === "HTMLIFrameElement") {
-        console.log(e, transformUrl(e));
-      }
-      e = transformUrl(e);
-      return originalSet?.call(this, e);
+    descriptor.set = function (url) {
+      const new_url = transformUrl(url);
+
+      // TODO: remove when done debugging.
+      console.info(`[${classElement}.${attr}.set]: ${url} -> ${new_url}`);
+
+      return originalSet?.call(this, new_url);
     };
 
     descriptor.get = function () {
-      if (classElement === "HTMLIFrameElement") {
-        console.log(this, arguments);
-      }
-      return transformUrl(originalGet?.call(this));
+      const url = originalGet?.call(this);
+      const new_url = transformUrl(url);
+      
+      // TODO: remove when done debugging.
+      console.info(`[${classElement}.${attr}.get]: ${url} -> ${new_url}`);
+
+      return new_url;
     };
 
     Object.defineProperty(window[classElement].prototype, attr, descriptor);
