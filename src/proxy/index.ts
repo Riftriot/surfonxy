@@ -1,7 +1,7 @@
 import type Session from "../session";
 import * as cheerio from 'cheerio';
 
-import { SURFONXY_GENERATED_ATTRIBUTE, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, SURFONXY_URI_ATTRIBUTES, createSurfonxyServiceWorkerPath } from "../utils/constants";
+import { SURFONXY_GENERATED_ATTRIBUTE, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, SURFONXY_SERVICE_WORKER_PATH, SURFONXY_URI_ATTRIBUTES, createSurfonxyServiceWorkerPath } from "../utils/constants";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
@@ -98,6 +98,11 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   //   item.attribs.action = transformUrl(item.attribs.action);
   // });
 
+  // We travel through every inline scripts, and tweak them.
+  $("script").not("[src]").each(function () {
+    const new_script_content = tweakJS($(this).html() as string);
+    $(this).html(new_script_content);
+  });
 
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.
@@ -107,20 +112,24 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   //   $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
   // }
 
-  // Add our client script to the page.
-  $("head").append(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
+  // Add our client script at the beginning of the `head` of the document.
+  $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
     ${scriptContentCache.replace("<<BASE_URL>>", base_url.href)}
   </script>`);
 
   return $.html();
 }
 
+const tweakJS = (content: string): string => {
+  content = content.replaceAll("location", "__sf_location");
+  return content;
+}
+
 export const createProxiedResponse = async (request: Request, session: Session): Promise<Response> => {
   /** The original URL, from the client. */
   const request_proxy_url = new URL(request.url);
-  if (request_proxy_url.pathname === "/surfonxy.js") {
-    const sw = await getServiceWorker();
-    return sw;
+  if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
+    return getServiceWorker();
   }
 
   const encoded_request_url = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
@@ -239,6 +248,12 @@ export const createProxiedResponse = async (request: Request, session: Session):
         </html>
       `)
     }
+  }
+  else if (contentType?.includes("text/javascript")) {
+    let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
+    content = tweakJS(content);
+
+    return giveNewResponse(content);
   }
 
   return giveNewResponse(response.clone().body as ReadableStream<Uint8Array>);
