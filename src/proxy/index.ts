@@ -84,6 +84,10 @@ export const tweakHTML = async (content: string, request_url: URL, proxied_url: 
       
       // We should add origin for double slashes URLs.
       const url_object = url[1] === "/" ? new URL(url, request_url.origin) : new URL(url);
+
+      // URLs like `ms-windows-store://home/` or `mailto:...` have a
+      // `"null"` origin, ignore them.
+      if (url_object.origin === "null") return url;
   
       // We ignore already patched requests.
       if (url_object.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
@@ -103,8 +107,8 @@ export const tweakHTML = async (content: string, request_url: URL, proxied_url: 
       return patched_url.pathname + patched_url.search + patched_url.hash;
     }
     catch (err) {
-      throw new Error(JSON.stringify(err, Object.getOwnPropertyNames(err))
-      )
+      console.error(url, JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      return url;
     }
   }
 
@@ -219,101 +223,108 @@ export const createProxiedResponse = async (request: Request, session: Session):
   request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
   request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
-  const response = await fetch(request_url, {
-    method: request.method,
-    headers: request_headers,
-    body: request.body,
-    redirect: "manual"
-  });
+  try {
+    const response = await fetch(request_url, {
+      method: request.method,
+      headers: request_headers,
+      body: request.body,
+      redirect: "manual"
+    });
+    
+    const response_headers = registerCookies(response, session);
   
-  const response_headers = registerCookies(response, session);
-
-  const giveNewResponse = (body: ReadableStream<Uint8Array> | string | null) => new Response(body, {
-    headers: response_headers,
-
-    // Just give the actual values.
-    status: response.status,
-    statusText: response.statusText
-  })
-
-  // When there's a redirection
-  if (response.status >= 300 && response.status <= 399) {
-    const redirect_to = response_headers.get("location");
-    if (redirect_to) {
-      const redirection_url = new URL(redirect_to);
-      const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, new URL(request.url).origin);
-      new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(redirection_url.origin));
-      new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
-
-      response_headers.set("location", new_redirection_url.href);
+    const giveNewResponse = (body: ReadableStream<Uint8Array> | string | null) => new Response(body, {
+      headers: response_headers,
+  
+      // Just give the actual values.
+      status: response.status,
+      statusText: response.statusText
+    })
+  
+    // When there's a redirection
+    if (response.status >= 300 && response.status <= 399) {
+      const redirect_to = response_headers.get("location");
+      if (redirect_to) {
+        const redirection_url = new URL(redirect_to);
+        const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, new URL(request.url).origin);
+        new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(redirection_url.origin));
+        new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
+  
+        response_headers.set("location", new_redirection_url.href);
+      }
     }
-  }
-
-  // When the content is HTML, we have to tweak the document a little...
-  const contentType = response_headers.get("content-type");
-  if (contentType?.includes("text/html")) {
-    const isServiceWorkerReady = request.url.includes(`${SURFONXY_URI_ATTRIBUTES.READY}=1`);
-
-    if (isServiceWorkerReady) {
+  
+    // When the content is HTML, we have to tweak the document a little...
+    const contentType = response_headers.get("content-type");
+    if (contentType?.includes("text/html")) {
+      const isServiceWorkerReady = request.url.includes(`${SURFONXY_URI_ATTRIBUTES.READY}=1`);
+  
+      if (isServiceWorkerReady) {
+        let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
+        content = await tweakHTML(content, request_proxy_url, request_url);
+  
+        return giveNewResponse(content);
+      }
+      else {
+        return giveNewResponse(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <script>
+                localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${session.id}");
+  
+                navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(session.id)}")
+                .then(reg => {
+                  const refresh = () => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("${SURFONXY_URI_ATTRIBUTES.READY}", "1");
+                    window.location.href = url.href;
+                  }
+  
+                  if (reg.installing) {
+                    const sw = reg.installing || reg.waiting;
+                    sw.onstatechange = function() {
+                      if (sw.state === 'installed') {
+                        refresh();
+                      }
+                    };
+                  }
+                  else if (reg.active) {
+                    refresh();
+                  }
+                })
+                .catch(handleError)
+              
+                function handleError(error) {
+                  console.error(error);
+                }
+              </script>
+              <title>Loading...</title>
+            </head>
+            <body>
+              <h1>Wait, the service worker is loading !</h1>
+              <p>You'll be automatically redirected to the proxied page when the worker has been activated.</p>
+            </body>
+          </html>
+        `)
+      }
+    }
+    // Also tweak JavaScript files.
+    // According to <https://www.rfc-editor.org/rfc/rfc4329.txt>, JavaScript files
+    // can have two media types, which are `application/javascript`
+    // and `text/javascript` - but this one should be obsolete.
+    else if (contentType?.match(/(application|text)\/javascript/)) {
       let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
-      content = await tweakHTML(content, request_proxy_url, request_url);
-
+      content = tweakJS(content);
+  
       return giveNewResponse(content);
     }
-    else {
-      return giveNewResponse(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <script>
-              localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${session.id}");
+  
+    return giveNewResponse(response.clone().body as ReadableStream<Uint8Array>);
 
-              navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(session.id)}")
-              .then(reg => {
-                const refresh = () => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("${SURFONXY_URI_ATTRIBUTES.READY}", "1");
-                  window.location.href = url.href;
-                }
-
-                if (reg.installing) {
-                  const sw = reg.installing || reg.waiting;
-                  sw.onstatechange = function() {
-                    if (sw.state === 'installed') {
-                      refresh();
-                    }
-                  };
-                }
-                else if (reg.active) {
-                  refresh();
-                }
-              })
-              .catch(handleError)
-            
-              function handleError(error) {
-                console.error(error);
-              }
-            </script>
-            <title>Loading...</title>
-          </head>
-          <body>
-            <h1>Wait, the service worker is loading !</h1>
-            <p>You'll be automatically redirected to the proxied page when the worker has been activated.</p>
-          </body>
-        </html>
-      `)
-    }
   }
-  // Also tweak JavaScript files.
-  // According to <https://www.rfc-editor.org/rfc/rfc4329.txt>, JavaScript files
-  // can have two media types, which are `application/javascript`
-  // and `text/javascript` - but this one should be obsolete.
-  else if (contentType?.match(/(application|text)\/javascript/)) {
-    let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
-    content = tweakJS(content);
-
-    return giveNewResponse(content);
+  catch (err) {
+    console.error(request.url, err);
+    throw new Error("Error while fetching and tweaking the distant URL.");
   }
-
-  return giveNewResponse(response.clone().body as ReadableStream<Uint8Array>);
 }
