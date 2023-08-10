@@ -57,7 +57,7 @@ const registerCookies = (response: Response, session: Session) => {
 
 let scriptContentCache: string | undefined;
 
-export const tweakHTML = async (content: string, session_id: string, base_url: URL): Promise<string> => {
+export const tweakHTML = async (content: string, request_url: URL, proxied_url: URL): Promise<string> => {
   const $ = cheerio.load(content);
 
   if (!scriptContentCache) {
@@ -70,29 +70,57 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
     scriptContentCache = await result.outputs[0].text();
   }
 
-  // const transformUrl = (url: string) => {
-  //   if (url.startsWith("/")) {
-  //     const url_object = new URL(url, base_url.origin);
-  //     url_object.searchParams.set("__surfonxy_url", btoa(base_url.origin));  
-  //     return url_object.pathname + url_object.search;
-  //   }
-  //   return url;
-  //   // const url_object = new URL(url);
-  //   // const base_url_obj = new URL(base_url);
-  //   // base_url_obj.pathname = url_object.pathname;
-  //   // base_url_obj.search = url_object.search;
-  //   // base_url_obj.searchParams.set("__surfonxy_url", btoa(url_object.origin));  
+  const transformUrl = (url: string) => {
+    if (url.startsWith("data:")) return url;
+    if (url[0] === "#") return url;
+    
+    try {
+      if (url[0] === "/" && url[1] !== "/") {
+        const url_object = new URL(url, request_url.origin);
+        url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(proxied_url.origin));  
+        url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");  
+        return url_object.pathname + url_object.search + url_object.hash;
+      }
+      
+      // We should add origin for double slashes URLs.
+      const url_object = url[1] === "/" ? new URL(url, request_url.origin) : new URL(url);
+  
+      // We ignore already patched requests.
+      if (url_object.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
+        // Only ignore if the origin was patched as well.
+        if (url_object.origin === request_url.origin)
+          return url_object.pathname + url_object.search + url_object.hash;
+      }
+  
+      const patched_origin = url_object.origin === request_url.origin
+        ? proxied_url.origin
+        : url_object.origin;
+  
+      const patched_url = new URL(url_object.pathname + url_object.search + url_object.hash, request_url.origin);
+      patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(patched_origin))
+      patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
+  
+      return patched_url.pathname + patched_url.search + patched_url.hash;
+    }
+    catch (err) {
+      throw new Error(JSON.stringify(err, Object.getOwnPropertyNames(err))
+      )
+    }
+  }
 
-  //   // return base_url_obj.pathname + base_url_obj.search;
-  // }
+  $("[href]").each(function () {
+    const current_href = $(this).attr("href");
+    if (!current_href) return;
 
-  // $("[href]").each((_, item) => {
-  //   item.attribs.href = transformUrl(item.attribs.href);
-  // });
+    $(this).attr("href", transformUrl(current_href));
+  });
 
-  // $("[src]").each((_, item) => {
-  //   item.attribs.src = transformUrl(item.attribs.src);
-  // });
+  $("[src]").each(function () {
+    const current_src = $(this).attr("src");
+    if (!current_src) return;
+    
+    $(this).attr("src", transformUrl(current_src));
+  });
 
   // $("form[action]").each((_, item) => {
   //   item.attribs.action = transformUrl(item.attribs.action);
@@ -104,6 +132,28 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
     $(this).html(new_script_content);
   });
 
+  // Rewrite URLs in `meta[http-equiv="refresh"]`.
+  // The content could look like this, `0;url=...`
+  $(`meta[http-equiv="refresh"]`).each(function () {
+    const content = $(this).attr("content");
+    if (typeof content === "undefined") return;
+
+    let [delay, url] = content.split(";");
+    if (typeof url === "undefined") return;
+
+    // We only want content after the `url=`.
+    url = url.slice(4)
+
+    const origin = url.startsWith("/") ? proxied_url.origin : new URL(url).origin;
+    const url_object = new URL(url, origin); // We only put the origin here to have a valid URL.
+    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(origin));
+    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+
+    url = "url=" + url_object.pathname + url_object.search;
+
+    $(this).attr("content", [delay, url].join(";"));
+  })
+
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.
   // > There can be only one `<base>` element.
@@ -112,9 +162,14 @@ export const tweakHTML = async (content: string, session_id: string, base_url: U
   //   $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
   // }
 
+  // Remove every <base> elements from DOM.
+  $('head base').each(function () {
+    $(this).remove();
+  });
+
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
-    ${scriptContentCache.replace("<<BASE_URL>>", base_url.href)}
+    ${scriptContentCache.replace("<<BASE_URL>>", proxied_url.href)}
   </script>`);
 
   return $.html();
@@ -201,7 +256,7 @@ export const createProxiedResponse = async (request: Request, session: Session):
 
     if (isServiceWorkerReady) {
       let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
-      content = await tweakHTML(content, session.id, request_url);
+      content = await tweakHTML(content, request_proxy_url, request_url);
 
       return giveNewResponse(content);
     }
