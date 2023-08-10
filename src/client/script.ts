@@ -8,6 +8,19 @@ const PROXY_ORIGIN = window.location.origin;
 // TODO: Should do a verification for the session ID, if exists or not.
 const PROXY_SESSION_ID = localStorage.getItem(SURFONXY_LOCALSTORAGE_SESSION_ID_KEY) as string;
 
+(function checkInitialURIParameters () {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY)) {
+    url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+  }
+
+  if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
+    url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));
+  }
+
+  window.history.replaceState(window.history.state, "", url);
+})();
+
 window.origin = BASE_URL.origin;
 
 // Add this to prevent unregister.
@@ -139,24 +152,36 @@ const transformUrl = (url_r: string | URL) => {
   if (!url_r) return url_r;
   const url = url_r.toString();
   
-  // If it was already transformed, don't touch it.
-  if (url.includes(`${SURFONXY_URI_ATTRIBUTES.URL}=`)) return url;
   // Don't touch [data URLs](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
   if (url.startsWith("data:")) return url;
+  if (url[0] === "#") return url;
   
-  if (url.startsWith("/")) {
-    const url_object = new URL(url, BASE_URL.origin);
+  if (url[0] === "/" && url[1] !== "/") {
+    const url_object = new URL(url, window.location.origin);
     url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));  
     url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");  
-    return url_object.pathname + url_object.search;
+    return url_object.pathname + url_object.search + url_object.hash;
+  }
+  
+  // We should add origin for double slashes URLs.
+  const url_object = url[1] === "/" ? new URL(url, window.location.origin) : new URL(url);
+
+  // We ignore already patched requests.
+  if (url_object.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
+    // Only ignore if the origin was patched as well.
+    if (url_object.origin === window.location.origin)
+      return url_object.pathname + url_object.search + url_object.hash;
   }
 
-  const url_object = new URL(url);
-  const base_url_obj = new URL(url_object.pathname + url_object.search, BASE_URL.origin);
-  base_url_obj.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url_object.origin));  
-  base_url_obj.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");  
+  const patched_origin = url_object.origin === window.location.origin
+    ? BASE_URL.origin
+    : url_object.origin;
 
-  return base_url_obj.pathname + base_url_obj.search;
+  const patched_url = new URL(url_object.pathname + url_object.search + url_object.hash, window.location.origin);
+  patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(patched_origin))
+  patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
+
+  return patched_url.pathname + patched_url.search + patched_url.hash;
 }
 
 const originalFetch = window.fetch;
@@ -185,18 +210,22 @@ XMLHttpRequest.prototype.open = function() {
 
 const formSubmitOriginal = HTMLFormElement.prototype.submit;
 HTMLFormElement.prototype.submit = function() {
-  const url_parameter = document.createElement("input");
-  url_parameter.setAttribute("hidden", "true");
-  url_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.URL);
-  url_parameter.setAttribute("value", btoa(BASE_URL.origin));
-  
-  const ready_parameter = document.createElement("input");
-  ready_parameter.setAttribute("hidden", "true");
-  ready_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.READY);
-  ready_parameter.setAttribute("value", "1");
+  const method = this.method.toUpperCase();
 
-  this.appendChild(url_parameter);
-  this.appendChild(ready_parameter);
+  if (method === "GET") {
+    const url_parameter = document.createElement("input");
+    url_parameter.setAttribute("hidden", "true");
+    url_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.URL);
+    url_parameter.setAttribute("value", btoa(BASE_URL.origin));
+    
+    const ready_parameter = document.createElement("input");
+    ready_parameter.setAttribute("hidden", "true");
+    ready_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.READY);
+    ready_parameter.setAttribute("value", "1");
+  
+    this.appendChild(url_parameter);
+    this.appendChild(ready_parameter);
+  }
 
   // @ts-expect-error
   formSubmitOriginal.apply(this, arguments);
@@ -255,3 +284,63 @@ for (const classElementRaw in prototypesToFix) {
     Object.defineProperty(window[classElement].prototype, attr, descriptor);
   }
 }
+
+// (function patchMetaHttpEquivRefresh () {
+//   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLMetaElement.prototype, "content") as PropertyDescriptor;
+//   const originalGet = descriptor.get;
+//   const originalSet = descriptor.set;
+  
+//   descriptor.set = function (url) {
+//     const new_url = transformUrl(url);
+  
+//     // TODO: remove when done debugging.
+//     console.info(`[HTMLMetaElement.content.set]: ${url} -> ${new_url}`);
+  
+//     return originalSet?.call(this, url);
+//   };
+  
+//   descriptor.get = function () {
+//     const url = originalGet?.call(this);
+//     const new_url = transformUrl(url);
+    
+//     // TODO: remove when done debugging.
+//     console.info(`[HTMLMetaElement.content.get]: ${url} -> ${new_url}`);
+  
+//     return url;
+//   };
+  
+//   Object.defineProperty(window.HTMLMetaElement.prototype, "content", descriptor);
+// })();
+
+/**
+ * We patch the `History` prototype.
+ * Unlike `Location`, it is not read-only,
+ * so we can patch the functions there directly.
+ */
+(function patchHistoryPrototype () {
+  /** Methods we will patch in `window.History.prototype`. */
+  const methods = [
+    // <https://developer.mozilla.org/docs/Web/API/History/replaceState>
+    "replaceState", 
+    // <https://developer.mozilla.org/docs/Web/API/History/pushState>
+    "pushState"
+  ] as const;
+  
+  for (const method of methods) {
+    const original = window.History.prototype[method];
+    
+    window.History.prototype[method] = function () {
+      let original_url = arguments[2];
+
+      // Third argument - so `arguments[2]` - is `url`, which is optional.
+      // > URL must be of the same origin as the current URL; otherwise replaceState throws an exception.
+      if (original_url) {
+        arguments[2] = transformUrl(arguments[2] as (string | URL));
+      }
+
+      console.info(`[History.${method}]: ${original_url} -> ${arguments[2]}`);
+      // @ts-expect-error
+      original.apply(this, arguments);
+    }
+  }
+})();
