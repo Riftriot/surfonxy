@@ -304,7 +304,11 @@ export const createProxiedResponse = async (request: Request, session: Session):
       `)
     }
   }
-  else if (contentType?.includes("text/javascript")) {
+  // Also tweak JavaScript files.
+  // According to <https://www.rfc-editor.org/rfc/rfc4329.txt>, JavaScript files
+  // can have two media types, which are `application/javascript`
+  // and `text/javascript` - but this one should be obsolete.
+  else if (contentType?.match(/(application|text)\/javascript/)) {
     let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
     content = tweakJS(content);
 
