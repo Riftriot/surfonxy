@@ -136,6 +136,11 @@ export const tweakHTML = async (content: string, request_url: URL, proxied_url: 
     $(this).html(new_script_content);
   });
 
+  // We travel through every scripts and we remove the integrity attribute.
+  $("script[integrity]").each(function () {
+    $(this).removeAttr("integrity");
+  })
+
   // Rewrite URLs in `meta[http-equiv="refresh"]`.
   // The content could look like this, `0;url=...`
   $(`meta[http-equiv="refresh"]`).each(function () {
