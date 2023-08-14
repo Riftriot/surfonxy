@@ -7,8 +7,6 @@
 
 Since this package is mainly made for Bun, we recommend that you make sure to have the latest version of Bun installed.
 
-> Even though, Node.js support will be addressed, in the future.
-
 ```bash
 # Install the package using `bun`.
 bun add @surfskip/surfonxy
@@ -73,10 +71,12 @@ This one is used to intercept every possible requests and rewrite the URL before
 
 To make sure we register the service worker on the very beginning, we pre-install it by showing a placeholder page (that can be customizable in the future) that just installs the service worker. When it is installed, we simply redirect to client to the exact same URL but with a new search parameter `__surfonxy_ready=1` that tells to not serve the placeholder page.
 
-### Server-side tweaking (TODO)
+### Server-side tweaking
 
-We rewrite HTML documents, for example, when they're requested server-side. That way we can pre-update some URLs before the client even receives it.
+We rewrite HTML documents when they're requested server-side. That way we can pre-update some URLs before the client even receives it.
 
 It could be useful for times where monkey patching didn't worked for some odd reason.
 
-> In the future, we should also use ASTs to parse JS and CSS code to detect redirection or URLs to also rewrite them from here (?)
+We also tweak JS scripts, to rewrite every `location` to `__sf_location`. That allows to proxy the `window.location` property. Anyway, doing this it in this way is not recommended at all and can break existing code.
+
+In the future, we should also use an AST to parse the JS code to rewrite usage of the `window.location` property to be rewritten to `window.__sf_location`.
