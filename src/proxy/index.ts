@@ -57,7 +57,7 @@ const registerCookies = (response: Response, session: Session) => {
 
 let scriptContentCache: string | undefined;
 
-export const tweakHTML = async (content: string, request_url: URL, proxied_url: URL): Promise<string> => {
+export const tweakHTML = async (content: string, request_url: URL, proxied_url: URL, options: ProxyOptions): Promise<string> => {
   const $ = cheerio.load(content);
 
   if (!scriptContentCache) {
@@ -178,7 +178,10 @@ export const tweakHTML = async (content: string, request_url: URL, proxied_url: 
 
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
-    ${scriptContentCache.replace("<<BASE_URL>>", proxied_url.href)}
+    ${scriptContentCache
+      .replace("<<BASE_URL>>", proxied_url.href)
+      .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)
+    }
   </script>`);
 
   return $.html();
@@ -189,7 +192,14 @@ const tweakJS = (content: string): string => {
   return content;
 }
 
-export const createProxiedResponse = async (request: Request, session: Session): Promise<Response> => {
+export interface ProxyOptions {
+  /** Should have no trailing slash. */
+  WEBSOCKET_PROXY_PATH: string
+}
+
+export const createProxiedResponse = async (request: Request, session: Session, options: ProxyOptions = {
+  WEBSOCKET_PROXY_PATH: "/__surfonxy_websocket__"
+}): Promise<Response> => {
   /** The original URL, from the client. */
   const request_proxy_url = new URL(request.url);
   if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
@@ -266,7 +276,7 @@ export const createProxiedResponse = async (request: Request, session: Session):
   
       if (isServiceWorkerReady) {
         let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
-        content = await tweakHTML(content, request_proxy_url, request_url);
+        content = await tweakHTML(content, request_proxy_url, request_url, options);
   
         return giveNewResponse(content);
       }

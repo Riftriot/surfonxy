@@ -3,6 +3,7 @@
 import { SURFONXY_URI_ATTRIBUTES, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, createSurfonxyServiceWorkerPath } from "../utils/constants";
 
 // To be replaced by Bun.
+const WEBSOCKET_PROXY_PATH = "<<WEBSOCKET_PROXY_PATH>>"; // No trailing slash.
 const BASE_URL = new URL("<<BASE_URL>>");
 const PROXY_ORIGIN = window.location.origin;
 // TODO: Should do a verification for the session ID, if exists or not.
@@ -209,7 +210,7 @@ XMLHttpRequest.prototype.open = function() {
 };
 
 const formSubmitOriginal = HTMLFormElement.prototype.submit;
-HTMLFormElement.prototype.submit = function() {
+HTMLFormElement.prototype.submit = function () {
   const method = this.method.toUpperCase();
 
   if (method === "GET") {
@@ -229,7 +230,30 @@ HTMLFormElement.prototype.submit = function() {
 
   // @ts-expect-error
   formSubmitOriginal.apply(this, arguments);
-}
+};
+
+(function patchWebSockets () {
+  const OriginalWebSocket = window.WebSocket;
+  
+  // @ts-expect-error
+  window.WebSocket = function () {
+    let url = arguments[0] as string | URL;
+    if (typeof url === "string") {
+      url = new URL(url);
+    }
+
+    const patched_url = new URL(url.pathname + url.search + url.hash, window.location.origin);
+    patched_url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url.origin));
+    patched_url.pathname = WEBSOCKET_PROXY_PATH + patched_url.pathname;
+    arguments[0] = patched_url;
+
+    console.info(`[window.WebSocket] ${url.href} -> ${patched_url.href}`);
+
+    // @ts-expect-error
+    return new OriginalWebSocket(...arguments)
+  };
+})();
 
 const prototypesToFix = {
   HTMLAnchorElement: ['href'],
