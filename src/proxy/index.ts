@@ -263,7 +263,8 @@ export const createProxiedResponse = async (request: Request, session: Session, 
         const redirection_url = new URL(redirect_to);
         const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, new URL(request.url).origin);
         new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(redirection_url.origin));
-        new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
+        new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1")
+        // new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
   
         response_headers.set("location", new_redirection_url.href);
       }
