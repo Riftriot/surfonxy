@@ -3,6 +3,8 @@ import * as cheerio from 'cheerio';
 
 import { SURFONXY_GENERATED_ATTRIBUTE, SURFONXY_LOCALSTORAGE_SESSION_ID_KEY, SURFONXY_SERVICE_WORKER_PATH, SURFONXY_URI_ATTRIBUTES, createSurfonxyServiceWorkerPath } from "../utils/constants";
 
+import { tweakJS } from "./tweaks/javascript";
+
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
 const getServiceWorker = async () => {
@@ -185,11 +187,6 @@ export const tweakHTML = async (content: string, request_url: URL, proxied_url: 
   </script>`);
 
   return $.html();
-}
-
-const tweakJS = (content: string): string => {
-  content = content.replaceAll("location", "__sf_location");
-  return content;
 }
 
 export interface ProxyOptions {

@@ -15,14 +15,20 @@ export const tweakJS = (code: string): string => {
   
   traverse(ast, {
     enter (path) {
-      // Check if window was not defined as another variable in the scope, like `let w = window;`.
-      
-      
-      // Rewrite `window.location` to `window.__sf_location`.
-      if (path.isMemberExpression()) {
-        
+      if (path.node.type === "MemberExpression") {
+        if (path.node.object.type === "Identifier") {
+          let from = path.node.object.name;
+          if (from !== "window") {
+            let bind = path.scope.getBinding(from);
+            if (!bind) return;
 
-        if (path.get("object").isIdentifier({ name: "window" })) {
+            if (bind.path.node.type === "VariableDeclarator" && bind.path.node.init && bind.path.node.init.type === "Identifier") {
+              from = bind.path.node.init.name;
+            } else return;
+
+            if (from !== "window") return;
+          }
+
           if (path.node.property.type === "Identifier" && path.node.property.name === "location") {
             // only if the window variable was not redefined before
             if (path.scope.hasBinding("window")) return;
@@ -34,33 +40,5 @@ export const tweakJS = (code: string): string => {
     }
   });
 
-  return generate(ast).code;
+  return generate(ast, /*{ minified: true }*/).code;
 };
-
-const badCode = `
-  window.location.href = "https://google.com";
-  window.location = "https://google.com";
-  window.location.replace("https://google.com");
-  window.location.assign("https://google.com");
-  window.location.reload();
-  window.location.reload(true);
-  window.location.toString();
-  
-  const a = window.location;
-  a.href = "https://google.com";
-
-  const w = window;
-  w.location.href = "https://google.com";
-
-  const func = () => {
-    let location = "yes";
-    location = "no";
-
-    let window = { location: "yes" };
-    let data = window.location;
-
-    return data;
-  }
-`;
-
-console.log(tweakJS(badCode));
