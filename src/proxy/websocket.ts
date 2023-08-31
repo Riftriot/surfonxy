@@ -35,18 +35,30 @@ export const makeProxyWebSocketHandler = <T extends {
     const original_pathname = patched_url.pathname.slice(base_path.length);
     const original_url = new URL(original_pathname + patched_url.search + patched_url.hash, origin_decoded);
 
-    this.proxiedWebSocket = new WebSocket(original_url);
+    // ws.data.headers["origin"] = "https://discord.com";
+    // ws.data.headers["host"] = "wss://remote-auth-gateway.discord.gg";
+    this.proxiedWebSocket = new WebSocket(original_url, {
+      // @ts-expect-error
+      headers: ws.data.headers
+    });
+    console.log(this.proxiedWebSocket.url);
+
+    this.proxiedWebSocket.onopen = (e) => {
+      console.log("open");
+    }
 
     this.proxiedWebSocket.onmessage = (event) => {
       ws.send(event.data);
     }
-
+    
     this.proxiedWebSocket.onclose = (event) => {
+      console.log("close", event.reason);
       ws.close(event.code, event.reason);
     }
   },
   
   message (ws, message) {
+    console.log(this.proxiedWebSocket?.readyState)
     if (!this.proxiedWebSocket) return;
     this.proxiedWebSocket.send(message);
   },
