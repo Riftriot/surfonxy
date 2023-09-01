@@ -205,7 +205,11 @@ export const createProxiedResponse = async (request: Request, session: Session, 
 
   const encoded_request_url = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
   if (!encoded_request_url) {
-    throw new Error(`No URL provided in the "${SURFONXY_URI_ATTRIBUTES.URL}" search parameter.`);
+    console.error("NO URL", request.url);
+    return new Response("No URL provided in the URL search parameter.", {
+      status: 400
+    });
+    // throw new Error(`No URL provided in the "${SURFONXY_URI_ATTRIBUTES.URL}" search parameter, on ${request_proxy_url.href}.`);
   }
 
   let request_url: URL;
@@ -228,6 +232,7 @@ export const createProxiedResponse = async (request: Request, session: Session, 
   request_headers.delete("host");
   request_headers.delete("origin")
   request_headers.delete("referer");
+  // request_headers.delete("connection");
 
   // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
   request_headers.delete("accept-encoding"); 
@@ -236,14 +241,17 @@ export const createProxiedResponse = async (request: Request, session: Session, 
   request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
   try {
-    const response = await fetch(request_url, {
+    const response = await fetch(request_url.href, {
       method: request.method,
       headers: request_headers,
       body: request.body,
       redirect: "manual"
     });
-    
+
+    console.log(response.status, response.url);
+
     const response_headers = registerCookies(response, session);
+    response_headers.delete("content-encoding");
   
     const giveNewResponse = (body: ReadableStream<Uint8Array> | string | null) => new Response(body, {
       headers: response_headers,
@@ -273,7 +281,7 @@ export const createProxiedResponse = async (request: Request, session: Session, 
       const isServiceWorkerReady = request.url.includes(`${SURFONXY_URI_ATTRIBUTES.READY}=1`);
   
       if (isServiceWorkerReady) {
-        let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
+        let content = await Bun.readableStreamToText(response.body as ReadableStream<Uint8Array>);
         content = await tweakHTML(content, request_proxy_url, request_url, options);
   
         return giveNewResponse(content);
@@ -327,14 +335,13 @@ export const createProxiedResponse = async (request: Request, session: Session, 
     // can have two media types, which are `application/javascript`
     // and `text/javascript` - but this one should be obsolete.
     else if (contentType?.match(/(application|text)\/javascript/)) {
-      let content = await Bun.readableStreamToText(response.clone().body as ReadableStream<Uint8Array>);
+      let content = await Bun.readableStreamToText(response.body as ReadableStream<Uint8Array>);
       content = tweakJS(content);
   
       return giveNewResponse(content);
     }
-  
-    return giveNewResponse(response.clone().body as ReadableStream<Uint8Array>);
 
+    return giveNewResponse(response.body);
   }
   catch (err) {
     console.error(request.url, err);
