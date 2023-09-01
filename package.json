@@ -3,23 +3,16 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "@types/babel__generator": "^7.6.4",
-    "@types/babel__traverse": "^7.20.1",
     "@types/cookiejar": "^2.1.2",
     "@types/trusted-types": "^2.0.3",
-    "@types/urijs": "^1.19.19",
     "bun-types": "^0.7.3",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@babel/generator": "^7.22.10",
-    "@babel/parser": "^7.22.14",
-    "@babel/traverse": "^7.22.11",
     "@elysiajs/cookie": "^0.6.0",
     "cheerio": "^1.0.0-rc.12",
     "cookiejar": "^2.1.4",
     "elysia": "^0.6.3",
-    "js-base64": "^3.7.5",
-    "urijs": "^1.19.11"
+    "estree-toolkit": "^1.7.2"
   }
 }
