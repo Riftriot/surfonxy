@@ -281,7 +281,7 @@ export const createProxiedResponse = async (request: Request, session: Session, 
       const isServiceWorkerReady = request.url.includes(`${SURFONXY_URI_ATTRIBUTES.READY}=1`);
   
       if (isServiceWorkerReady) {
-        let content = await Bun.readableStreamToText(response.body as ReadableStream<Uint8Array>);
+        let content = await response.text();
         content = await tweakHTML(content, request_proxy_url, request_url, options);
   
         return giveNewResponse(content);
@@ -335,7 +335,7 @@ export const createProxiedResponse = async (request: Request, session: Session, 
     // can have two media types, which are `application/javascript`
     // and `text/javascript` - but this one should be obsolete.
     else if (contentType?.match(/(application|text)\/javascript/)) {
-      let content = await Bun.readableStreamToText(response.body as ReadableStream<Uint8Array>);
+      let content = await response.text();
       content = tweakJS(content);
   
       return giveNewResponse(content);
