@@ -15,12 +15,12 @@ export const tweakJS = (code: string): string => {
     });
   
     traverse(ast, {
-      $: { scope: true },
+      // $: { scope: true },
       MemberExpression (path) {
         if (!path.node) return;
   
         if (path.node.object.type === "Identifier") {
-          if (!path.scope) return;
+          // if (!path.scope) return;
   
           let object_name = path.node.object.name;
   
@@ -30,7 +30,7 @@ export const tweakJS = (code: string): string => {
           }
           
           if (object_name !== "window") {
-            let bind = path.scope.getBinding(object_name);
+            let bind = path.scope?.getBinding(object_name);
             if (!bind) return;
   
             if (bind.path.node && bind.path.node.type === "VariableDeclarator" && bind.path.node.init && bind.path.node.init.type === "Identifier") {
@@ -42,7 +42,7 @@ export const tweakJS = (code: string): string => {
   
           if (path.node.property.type === "Identifier" && path.node.property.name === "location") {
             // only if the window variable was not redefined before
-            if (path.scope.hasBinding("window")) return;
+            if (path.scope?.hasBinding("window")) return;
             
             path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
           }
