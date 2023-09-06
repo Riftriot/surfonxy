@@ -14,7 +14,7 @@
     "cheerio": "^1.0.0-rc.12",
     "cookiejar": "^2.1.4",
     "elysia": "^0.6.3",
-    "estree-toolkit": "^1.7.2",
+    "estree-toolkit": "^1.7.3",
     "meriyah": "^4.3.7"
   }
 }
