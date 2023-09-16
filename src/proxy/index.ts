@@ -102,8 +102,7 @@ export const tweakHTML = async (
       }
 
       // We should add origin for double slashes URLs.
-      const url_object =
-        url[1] === "/" ? new URL(url, request_url.origin) : new URL(url);
+      const url_object = url[1] === "/" ? new URL(url, request_url.origin) : new URL(url);
 
       // URLs like `ms-windows-store://home/` or `mailto:...` have a
       // `"null"` origin, ignore them.
@@ -116,10 +115,9 @@ export const tweakHTML = async (
           return url_object.pathname + url_object.search + url_object.hash;
       }
 
-      const patched_origin =
-        url_object.origin === request_url.origin
-          ? proxied_url.origin
-          : url_object.origin;
+      const patched_origin =url_object.origin === request_url.origin
+        ? proxied_url.origin
+        : url_object.origin;
 
       const patched_url = new URL(
         url_object.pathname + url_object.search + url_object.hash,
@@ -299,17 +297,15 @@ export const createProxiedResponse = async (
   const request_headers = new Headers(request.headers);
 
   // We get the cookies from our session.
-  const cookies = session.getCookiesAsStringFor(
-    request_url.hostname,
-    request_url.pathname
-  );
+  const cookies = session.getCookiesAsStringFor(request_url.hostname, request_url.pathname);
   request_headers.set("cookie", cookies);
 
-  // NOTE: This header can cause issues, see if it changes anything to keep it or no.
-  request_headers.delete("host");
+  // We make sure that the host is the same as the one we're proxying.
+  request_headers.set("Host", request_url.host);
+
+  // These values should be proxied in the future.
   request_headers.delete("origin");
   request_headers.delete("referer");
-  // request_headers.delete("connection");
 
   // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
   request_headers.delete("accept-encoding");
@@ -322,7 +318,7 @@ export const createProxiedResponse = async (
       method: request.method,
       headers: request_headers,
       body: request.body,
-      redirect: "manual",
+      redirect: "manual"
     });
 
     console.log(response.status, response.url);
@@ -346,10 +342,8 @@ export const createProxiedResponse = async (
       const redirect_to = response_headers.get("location");
       if (redirect_to) {
         const redirection_url = new URL(redirect_to);
-        const new_redirection_url = new URL(
-          redirection_url.pathname + redirection_url.search,
-          new URL(request.url).origin
-        );
+        const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, request_proxy_url.origin);
+
         new_redirection_url.searchParams.set(
           SURFONXY_URI_ATTRIBUTES.URL,
           btoa(redirection_url.origin)
@@ -358,9 +352,9 @@ export const createProxiedResponse = async (
           SURFONXY_URI_ATTRIBUTES.READY,
           "1"
         );
-        // new_redirection_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY) // If there was one...
 
         response_headers.set("location", new_redirection_url.href);
+        return giveNewResponse(null);
       }
     }
 
