@@ -391,13 +391,11 @@ export const createProxiedResponse = async (
                 )}")
                 .then(reg => {
                   const refresh = () => {
-                    if (!isIframe) {
-                      const url = new URL(window.location.href);
-                      url.searchParams.set("${
-                        SURFONXY_URI_ATTRIBUTES.READY
-                      }", "1");
-                      window.location.href = url.href;
-                    }
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("${
+                      SURFONXY_URI_ATTRIBUTES.READY
+                    }", "1");
+                    window.location.href = url.href;
                   }
   
                   if (reg.installing) {
