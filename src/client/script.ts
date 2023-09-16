@@ -291,7 +291,7 @@ const prototypesToFix = {
   HTMLFormElement: ["action"],
   HTMLFrameElement: ["src"],
   HTMLIFrameElement: ["src"],
-  HTMLImageElement: ["src"],
+  HTMLImageElement: ["src", "srcset"],
   HTMLInputElement: ["src"],
   HTMLLinkElement: ["href"],
   HTMLMediaElement: ["src"],

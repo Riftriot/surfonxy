@@ -259,13 +259,13 @@ export const createProxiedResponse = async (
     const origin = request_url.searchParams.get("origin");
 
     if (origin) {
-      console.log("yes there is origin");
+      console.log("[debug] yes there is origin");
 
       if (request_url.host) {
-        console.log("yes there is host");
+        console.log("[debug] yes there is host");
         const split = request_url.host.split(".");
         if (split.length > 2) {
-          console.log("yes there is > 2");
+          console.log("[debug] yes there is > 2");
           request_url.searchParams.set(
             "origin",
             `${request_url.protocol}//www.${split[split.length - 2]}.${
@@ -277,10 +277,10 @@ export const createProxiedResponse = async (
             "origin",
             `${request_url.protocol}//${request_url.host}`
           );
-          console.log("no there's no > 2");
+          console.log("[debug] no there's no > 2");
         }
 
-        console.log("request_url:", request_url);
+        console.log("[after_origin_patch] request_url:", request_url);
         // request_url.href =  request_url.toString();
       }
     }
@@ -368,6 +368,27 @@ export const createProxiedResponse = async (
 
       if (isServiceWorkerReady) {
         let content = await response.text();
+
+        if (contentType.includes("text/css")) {
+          console.log("[debug] got a css file, searching for url() function.");
+          const regex = /url\((?:(["'])([^"']*)\1|([^)]+))\)/g; // catches all links inside url()
+
+          let match;
+          while ((match = regex.exec(content))) {
+            const url = match[2] || match[3];
+
+            const newUrl = new URL(url);
+            newUrl.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+            newUrl.searchParams.set(
+              SURFONXY_URI_ATTRIBUTES.URL,
+              btoa(options.WEBSOCKET_PROXY_PATH)
+            );
+
+            content.replace(url, newUrl.href);
+            console.log(`[debug][css url() replacement]: ${url} -> ${newUrl}`);
+          }
+        }
+
         content = await tweakHTML(
           content,
           request_proxy_url,
