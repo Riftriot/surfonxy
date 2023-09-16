@@ -209,7 +209,7 @@ window.fetch = function () {
 const originalPostMessage = window.postMessage;
 window.postMessage = function () {
   if (typeof arguments[1] === "string") {
-    arguments[1] = PROXY_ORIGIN;
+    arguments[1] = transformUrl(arguments[1]);
   }
 
   // @ts-expect-error
@@ -267,16 +267,16 @@ HTMLFormElement.prototype.submit = function () {
     }
 
     const patched_url = new URL(
-      url.pathname + url.search + url.hash,
+      WEBSOCKET_PROXY_PATH + url.pathname + url.search + url.hash,
       window.location.origin
     );
-    patched_url.protocol =
-      window.location.protocol === "https:" ? "wss:" : "ws:";
+
+    patched_url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url.origin));
-    patched_url.pathname = WEBSOCKET_PROXY_PATH + patched_url.pathname;
-    arguments[0] = patched_url;
+    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(window.__sf_location.origin));
 
     console.info(`[window.WebSocket] ${url.href} -> ${patched_url.href}`);
+    arguments[0] = patched_url;
 
     // @ts-expect-error
     return new OriginalWebSocket(...arguments);

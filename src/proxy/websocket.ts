@@ -1,26 +1,32 @@
 import type { WebSocketHandler } from "bun";
 import { SURFONXY_URI_ATTRIBUTES } from "../utils/constants";
 
+import TCPWebSocket from "tcp-websocket";
+
 export const makeProxyWebSocketHandler = <T extends {
   request: Request,
   headers: Record<string, string>
 }>(base_path: string): (WebSocketHandler<T> & {
   /** Where the communication with the real websocket is done. */
-  proxiedWebSocket?: WebSocket
+  proxiedWebSocket?: TCPWebSocket
 }) => ({
     open (ws) {
       const patched_url = new URL(ws.data.request.url);
-      const origin_encoded = patched_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+
+      const request_url_encoded = patched_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+      const request_ws_origin_encoded = patched_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.ORIGIN);
     
-      if (!origin_encoded) {
+      if (!request_url_encoded || !request_ws_origin_encoded) {
         console.error("[proxy/websocket.ts]: closing because no encoded origin was provided.");
         ws.close();
         return;
       }
     
-      let origin_decoded: string | undefined;
+      let request_url_decoded: string | undefined;
+      let request_ws_origin_decoded: string | undefined;
       try {
-        origin_decoded = atob(origin_encoded);
+        request_url_decoded = atob(request_url_encoded);
+        request_ws_origin_decoded = atob(request_ws_origin_encoded);
       }
       catch (error) {
         console.error("[proxy/websocket.ts]: closing because we couldn't decode the origin provided.");
@@ -29,31 +35,28 @@ export const makeProxyWebSocketHandler = <T extends {
       }
 
       patched_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+      patched_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.ORIGIN);
       // In case it was introduced somehow, normally we should only have the `URL` one on WS.
       patched_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY); 
     
       const original_pathname = patched_url.pathname.slice(base_path.length);
-      const original_url = new URL(original_pathname + patched_url.search + patched_url.hash, origin_decoded);
+      const original_url = new URL(original_pathname + patched_url.search + patched_url.hash, request_url_decoded);
 
-      console.log(original_url.href);
-
-      this.proxiedWebSocket = new WebSocket(original_url.href, {
-        headers: {
-          origin: ws.data.headers["origin"],
-        }
+      console.log("url>", original_url.href, "origin>", request_ws_origin_decoded);
+      this.proxiedWebSocket = new TCPWebSocket(original_url, {
+        headers: { "Origin": request_ws_origin_decoded.trim() }
       });
 
-      this.proxiedWebSocket.onmessage = (event) => {
+      this.proxiedWebSocket!.on("message", (event) => {
         ws.send(event.data);
-      };
+      });
     
-      this.proxiedWebSocket.onclose = (event) => {
+      this.proxiedWebSocket!.once("close", (event) => {
         ws.close(event.code, event.reason);
-      };
+      });
     },
   
     message (_, message) {
-      console.log(this.proxiedWebSocket?.readyState, message);
       this.proxiedWebSocket?.send(message);
     },
 
