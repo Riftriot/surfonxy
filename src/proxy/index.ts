@@ -235,6 +235,8 @@ export const createProxiedResponse = async (
     return getServiceWorker();
   }
 
+  // console.log("request_proxy_url", request_proxy_url);
+
   const encoded_request_url = request_proxy_url.searchParams.get(
     SURFONXY_URI_ATTRIBUTES.URL
   );
@@ -253,6 +255,35 @@ export const createProxiedResponse = async (
       request_proxy_url.pathname + request_proxy_url.search,
       decoded_request_url
     );
+
+    const origin = request_url.searchParams.get("origin");
+
+    if (origin) {
+      console.log("[debug] yes there is origin");
+
+      if (request_url.host) {
+        console.log("[debug] yes there is host");
+        const split = request_url.host.split(".");
+        if (split.length > 2) {
+          console.log("[debug] yes there is > 2");
+          request_url.searchParams.set(
+            "origin",
+            `${request_url.protocol}//www.${split[split.length - 2]}.${
+              split[split.length - 1]
+            }`
+          );
+        } else {
+          request_url.searchParams.set(
+            "origin",
+            `${request_url.protocol}//${request_url.host}`
+          );
+          console.log("[debug] no there's no > 2");
+        }
+
+        console.log("[after_origin_patch] request_url:", request_url);
+        // request_url.href =  request_url.toString();
+      }
+    }
   } catch (error) {
     // TODO: Add a better error handling, with custom Error class.
     throw new Error(
@@ -337,6 +368,27 @@ export const createProxiedResponse = async (
 
       if (isServiceWorkerReady) {
         let content = await response.text();
+
+        if (contentType.includes("text/css")) {
+          console.log("[debug] got a css file, searching for url() function.");
+          const regex = /url\((?:(["'])([^"']*)\1|([^)]+))\)/g; // catches all links inside url()
+
+          let match;
+          while ((match = regex.exec(content))) {
+            const url = match[2] || match[3];
+
+            const newUrl = new URL(url);
+            newUrl.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+            newUrl.searchParams.set(
+              SURFONXY_URI_ATTRIBUTES.URL,
+              btoa(options.WEBSOCKET_PROXY_PATH)
+            );
+
+            content.replace(url, newUrl.href);
+            console.log(`[debug][css url() replacement]: ${url} -> ${newUrl}`);
+          }
+        }
+
         content = await tweakHTML(
           content,
           request_proxy_url,
