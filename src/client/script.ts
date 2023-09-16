@@ -1,4 +1,5 @@
 /// <reference lib="DOM" />
+/// <reference lib="dom.iterable" />
 
 import {
   SURFONXY_URI_ATTRIBUTES,
@@ -205,6 +206,16 @@ window.fetch = function () {
   return originalFetch.apply(this, arguments);
 };
 
+const originalPostMessage = window.postMessage;
+window.postMessage = function () {
+  if (typeof arguments[1] === "string") {
+    arguments[1] = PROXY_ORIGIN;
+  }
+
+  // @ts-expect-error
+  originalPostMessage.apply(this, arguments);
+};
+
 const sendBeaconOriginal = navigator.sendBeacon;
 navigator.sendBeacon = function () {
   if (typeof arguments[0] === "string")
@@ -310,7 +321,7 @@ for (const classElementRaw in prototypesToFix) {
       const new_url = transformUrl(url);
 
       // TODO: remove when done debugging.
-      console.info(`[${classElement}.${attr}.set]: ${url} -> ${new_url}`);
+      console.info(`[set][${classElement}.${attr}.set]: ${url} -> ${new_url}`);
 
       return originalSet?.call(this, new_url);
     };
@@ -320,7 +331,7 @@ for (const classElementRaw in prototypesToFix) {
       const new_url = transformUrl(url);
 
       // TODO: remove when done debugging.
-      console.info(`[${classElement}.${attr}.get]: ${url} -> ${new_url}`);
+      console.info(`[get][${classElement}.${attr}.get]: ${url} -> ${new_url}`);
 
       return new_url;
     };
@@ -354,6 +365,21 @@ for (const classElementRaw in prototypesToFix) {
 //   };
 
 //   Object.defineProperty(window.HTMLMetaElement.prototype, "content", descriptor);
+// })();
+
+// (function patchDataHrefAttribute() {
+//   const elements = document.querySelectorAll("[data-href]");
+//   console.log("patching data-href", elements);
+
+//   for (const element of elements) {
+//     const url = element.getAttribute("data-href");
+
+//     if (url) {
+//       const new_url = transformUrl(url);
+//       element.setAttribute("data-href", new_url);
+//       console.log("patched data-href:", new_url);
+//     }
+//   }
 // })();
 
 /**

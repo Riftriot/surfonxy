@@ -235,6 +235,8 @@ export const createProxiedResponse = async (
     return getServiceWorker();
   }
 
+  // console.log("request_proxy_url", request_proxy_url);
+
   const encoded_request_url = request_proxy_url.searchParams.get(
     SURFONXY_URI_ATTRIBUTES.URL
   );
@@ -253,6 +255,35 @@ export const createProxiedResponse = async (
       request_proxy_url.pathname + request_proxy_url.search,
       decoded_request_url
     );
+
+    const origin = request_url.searchParams.get("origin");
+
+    if (origin) {
+      console.log("yes there is origin");
+
+      if (request_url.host) {
+        console.log("yes there is host");
+        const split = request_url.host.split(".");
+        if (split.length > 2) {
+          console.log("yes there is > 2");
+          request_url.searchParams.set(
+            "origin",
+            `${request_url.protocol}//www.${split[split.length - 2]}.${
+              split[split.length - 1]
+            }`
+          );
+        } else {
+          request_url.searchParams.set(
+            "origin",
+            `${request_url.protocol}//${request_url.host}`
+          );
+          console.log("no there's no > 2");
+        }
+
+        console.log("request_url:", request_url);
+        // request_url.href =  request_url.toString();
+      }
+    }
   } catch (error) {
     // TODO: Add a better error handling, with custom Error class.
     throw new Error(
@@ -360,11 +391,13 @@ export const createProxiedResponse = async (
                 )}")
                 .then(reg => {
                   const refresh = () => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set("${
-                      SURFONXY_URI_ATTRIBUTES.READY
-                    }", "1");
-                    window.location.href = url.href;
+                    if (!isIframe) {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set("${
+                        SURFONXY_URI_ATTRIBUTES.READY
+                      }", "1");
+                      window.location.href = url.href;
+                    }
                   }
   
                   if (reg.installing) {
