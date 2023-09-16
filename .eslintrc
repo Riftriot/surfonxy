@@ -23,6 +23,8 @@
     ],
 
     "n/no-callback-literal": "off",
-    "@typescript-eslint/no-extra-semi": "off"
+    "@typescript-eslint/no-extra-semi": "off",
+    "@typescript-eslint/ban-ts-comment": "off",
+    "prefer-rest-params": "off"
   }
 }

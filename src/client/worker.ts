@@ -54,7 +54,8 @@ self.addEventListener("fetch", (event) => {
         try {
           // We wrap it in a try/catch to "catch" decoding errors.
           proxy_origin_decoded = atob(decodeURIComponent(proxy_origin_encoded));
-        } catch {
+        }
+        catch {
           return sendOriginalRequest();
         }
 
@@ -109,7 +110,8 @@ self.addEventListener("fetch", (event) => {
         return fetch(patched_request);
       })()
     );
-  } catch (error) {
+  }
+  catch (error) {
     console.error("[service-worker]:", error, original_request);
   }
 });

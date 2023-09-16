@@ -3,7 +3,8 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --hot run index.ts"
+    "dev": "bun --watch run index.ts",
+    "lint": "eslint --ext .ts ."
   },
   "devDependencies": {
     "@types/cookiejar": "^2.1.2",

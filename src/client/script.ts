@@ -400,7 +400,7 @@ for (const classElementRaw in prototypesToFix) {
     const original = window.History.prototype[method];
 
     window.History.prototype[method] = function () {
-      let original_url = arguments[2];
+      const original_url = arguments[2];
 
       // Third argument - so `arguments[2]` - is `url`, which is optional.
       // > URL must be of the same origin as the current URL; otherwise replaceState throws an exception.
