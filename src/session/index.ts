@@ -12,7 +12,7 @@ const createUniqueSessionID = (): string => {
   }
 
   return id;
-}
+};
 
 class Session {
   public cookies: CookieJar;
@@ -49,6 +49,6 @@ export const createSession = (): Session => {
   sessions[session.id] = session;
 
   return session;
-}
+};
 
 export default Session;

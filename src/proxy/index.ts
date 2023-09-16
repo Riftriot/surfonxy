@@ -132,7 +132,8 @@ export const tweakHTML = async (
       patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
 
       return patched_url.pathname + patched_url.search + patched_url.hash;
-    } catch (err) {
+    }
+    catch (err) {
       console.error(url, JSON.stringify(err, Object.getOwnPropertyNames(err)));
       return url;
     }
@@ -171,11 +172,13 @@ export const tweakHTML = async (
 
   // Rewrite URLs in `meta[http-equiv="refresh"]`.
   // The content could look like this, `0;url=...`
-  $(`meta[http-equiv="refresh"]`).each(function () {
-    const content = $(this).attr("content");
+  $("meta[http-equiv=\"refresh\"]").each(function () {
+    const content = $(this).attr("content")?.split(";");
     if (typeof content === "undefined") return;
 
-    let [delay, url] = content.split(";");
+    const delay = content[0];
+    let url = content[1];
+
     if (typeof url === "undefined") return;
 
     // We only want content after the `url=`.
@@ -209,8 +212,8 @@ export const tweakHTML = async (
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
     ${scriptContentCache
-      .replace("<<BASE_URL>>", proxied_url.href)
-      .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
+    .replace("<<BASE_URL>>", proxied_url.href)
+    .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
   </script>`);
 
   return $.html();
@@ -272,7 +275,8 @@ export const createProxiedResponse = async (
               split[split.length - 1]
             }`
           );
-        } else {
+        }
+        else {
           request_url.searchParams.set(
             "origin",
             `${request_url.protocol}//${request_url.host}`
@@ -284,7 +288,8 @@ export const createProxiedResponse = async (
         // request_url.href =  request_url.toString();
       }
     }
-  } catch (error) {
+  }
+  catch (error) {
     // TODO: Add a better error handling, with custom Error class.
     throw new Error(
       "The provided URL is either...\n\t- Not an origin ;\n\t- Not a base64 encoded value.\n...or both, maybe."
@@ -397,25 +402,20 @@ export const createProxiedResponse = async (
         );
 
         return giveNewResponse(content);
-      } else {
+      }
+      else {
         return giveNewResponse(`
           <!DOCTYPE html>
           <html>
             <head>
               <script>
-                localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${
-          session.id
-        }");
+                localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${session.id}");
   
-                navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(
-                  session.id
-                )}")
+                navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(session.id)}")
                 .then(reg => {
                   const refresh = () => {
                     const url = new URL(window.location.href);
-                    url.searchParams.set("${
-                      SURFONXY_URI_ATTRIBUTES.READY
-                    }", "1");
+                    url.searchParams.set("${SURFONXY_URI_ATTRIBUTES.READY}", "1");
                     window.location.href = url.href;
                   }
   
@@ -459,7 +459,8 @@ export const createProxiedResponse = async (
     }
 
     return giveNewResponse(response.body);
-  } catch (err) {
+  }
+  catch (err) {
     console.error(request.url, err);
     throw new Error("Error while fetching and tweaking the distant URL.");
   }

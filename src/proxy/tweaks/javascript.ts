@@ -30,12 +30,13 @@ export const tweakJS = (code: string): string => {
           }
           
           if (object_name !== "window") {
-            let bind = path.scope.getBinding(object_name);
+            const bind = path.scope.getBinding(object_name);
             if (!bind) return;
   
             if (bind.path.node && bind.path.node.type === "VariableDeclarator" && bind.path.node.init && bind.path.node.init.type === "Identifier") {
               object_name = bind.path.node.init.name;
-            } else return;
+            }
+            else return;
   
             if (object_name !== "window") return;
           }

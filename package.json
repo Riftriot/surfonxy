@@ -8,7 +8,10 @@
   "devDependencies": {
     "@types/cookiejar": "^2.1.2",
     "@types/trusted-types": "^2.0.3",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
     "bun-types": "^0.7.3",
+    "eslint": "^8.49.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {
