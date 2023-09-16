@@ -80,3 +80,10 @@ It could be useful for times where monkey patching didn't worked for some odd re
 We also tweak JS scripts, to rewrite every `location` to `__sf_location`. That allows to proxy the `window.location` property. Anyway, doing this it in this way is not recommended at all and can break existing code.
 
 In the future, we should also use an AST to parse the JS code to rewrite usage of the `window.location` property to be rewritten to `window.__sf_location`.
+
+## Development
+
+| Command | Description |
+| ------- | ----------- |
+| `bun lint` | Lints the codebase using `eslint`. |
+| `bun dev` | Runs a test elysia server on `localhost:8000`. |
