@@ -145,9 +145,11 @@ class SurfonxyLocation {
   }
 }
 
+const SF_LOCATION = new SurfonxyLocation();
+
 // @ts-expect-error
 // Add the location proxy to the window.
-window.__sf_location = new SurfonxyLocation();
+window.__sf_location = SF_LOCATION;
 // @ts-expect-error
 // Proxies the window location in the document.
 document.__sf_location = window.__sf_location;
@@ -273,7 +275,7 @@ HTMLFormElement.prototype.submit = function () {
 
     patched_url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url.origin));
-    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(window.__sf_location.origin));
+    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(SF_LOCATION.origin));
 
     console.info(`[window.WebSocket] ${url.href} -> ${patched_url.href}`);
     arguments[0] = patched_url;
