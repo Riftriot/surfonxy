@@ -61,6 +61,6 @@ export const makeProxyWebSocketHandler = <T extends {
     },
 
     close (_, code, reason) {
-      this.proxiedWebSocket?.close(code, reason);
+      this.proxiedWebSocket?.close(reason, code);
     },
   });
