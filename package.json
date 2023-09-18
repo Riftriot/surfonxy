@@ -23,6 +23,6 @@
     "elysia": "^0.6.3",
     "estree-toolkit": "^1.7.3",
     "meriyah": "^4.3.7",
-    "tcp-websocket": "^0.1.0"
+    "tcp-websocket": "^0.1.1"
   }
 }
