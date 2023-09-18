@@ -8,7 +8,9 @@ export const makeProxyWebSocketHandler = <T extends {
   headers: Record<string, string>
 }>(base_path: string): (WebSocketHandler<T> & {
   /** Where the communication with the real websocket is done. */
-  proxiedWebSocket?: TCPWebSocket
+  proxiedWebSocket?: TCPWebSocket,
+  /** Messages that needs to be sent on real websocket open. */
+  messagesOnOpen?: string[]
 }) => ({
     open (ws) {
       const patched_url = new URL(ws.data.request.url);
@@ -42,9 +44,18 @@ export const makeProxyWebSocketHandler = <T extends {
       const original_pathname = patched_url.pathname.slice(base_path.length);
       const original_url = new URL(original_pathname + patched_url.search + patched_url.hash, request_url_decoded);
 
-      console.log("url>", original_url.href, "origin>", request_ws_origin_decoded);
       this.proxiedWebSocket = new TCPWebSocket(original_url, {
         headers: { "Origin": request_ws_origin_decoded.trim() }
+      });
+
+      this.proxiedWebSocket!.once("open", () => {
+        if (this.messagesOnOpen) {
+          this.messagesOnOpen.forEach((message) => {
+            this.proxiedWebSocket!.send(message);
+          });
+
+          this.messagesOnOpen = undefined;
+        }
       });
 
       this.proxiedWebSocket!.on("message", (event) => {
@@ -57,6 +68,22 @@ export const makeProxyWebSocketHandler = <T extends {
     },
   
     message (_, message) {
+      if (Buffer.isBuffer(message)) {
+        message = message.toString("utf8");
+      }
+      else if (typeof message === "object") {
+        message = JSON.stringify(message);
+      }
+
+      if (this.proxiedWebSocket?.readyState !== TCPWebSocket.OPEN) {
+        if (!this.messagesOnOpen) {
+          this.messagesOnOpen = [];
+        }
+
+        this.messagesOnOpen.push(message);
+        return;
+      }
+      
       this.proxiedWebSocket?.send(message);
     },
 
