@@ -314,6 +314,7 @@ export const createProxiedResponse = async (
   request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
   try {
+    console.log(request_headers.get("cookie"));
     const response = await fetch(request_url.href, {
       method: request.method,
       headers: request_headers,
@@ -322,10 +323,12 @@ export const createProxiedResponse = async (
     });
 
     console.log(response.status, response.url);
-
+    let cookies = response.headers.get("set-cookie") ?? "";
+    //replace domain in cookies with our domain
+    cookies = cookies.replace(/domain=[^;]+/g, `domain=${request_url.hostname}`);
     const response_headers = registerCookies(response, session);
     response_headers.delete("content-encoding");
-
+    response_headers.set("Set-Cookie", cookies);
     const giveNewResponse = (
       body: ReadableStream<Uint8Array> | string | null
     ) =>
