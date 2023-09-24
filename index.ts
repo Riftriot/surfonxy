@@ -6,7 +6,11 @@ const session = createSession();
 
 const WEBSOCKET_BASE_PATH = "/__surfonxy_websocket__";
 
-new Elysia()
+new Elysia({ serve: {
+  tls: {
+    
+  }
+}})
   .use(ws())
   .ws(WEBSOCKET_BASE_PATH + "/*", makeProxyWebSocketHandler(WEBSOCKET_BASE_PATH) as Omit<Partial<WebSocketHandler<Context>>, "publish" | "open" | "message" | "close" | "drain" | "publishToSelf">)
   .all("*", ({ request }) => {
@@ -14,6 +18,14 @@ new Elysia()
       WEBSOCKET_PROXY_PATH: WEBSOCKET_BASE_PATH
     });
   })
-  .listen(8000, (server) => {
-    console.info(`running on ${server.hostname}:${server.port}`);
+  .listen({
+    tls: {
+      key: Bun.file("./surfonxy.dev-key.pem"),
+      cert: Bun.file("./surfonxy.dev.pem"),
+    },
+
+    port: 443,
+    hostname: "surfonxy.dev"
+  }, (server) => {
+    console.info(`[elysia]: Running on https://${server.hostname}`);
   });
