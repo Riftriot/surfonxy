@@ -10,6 +10,7 @@ import {
 } from "../utils/constants";
 
 import { tweakJS } from "./tweaks/javascript";
+import { Cookie, CookieAccessInfo, CookieJar } from "cookiejar";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
@@ -44,14 +45,11 @@ const getServiceWorker = async () => {
  */
 const registerCookies = (response: Response, session: Session) => {
   const headers = new Headers(response.headers);
-  const cookies = response.headers?.getAll("set-cookie") ?? [];
+  const cookies = response.headers?.get("set-cookie") || "";
   session.addCookies(cookies);
-
-  // We prevent returning the cookies to client,
-  // since the client doesn't have to store them!
-  // Everything is handled by Surfonxy.
-  headers.delete("set-cookie");
-
+  if (cookies.toLowerCase().includes("httponly")) {
+    headers.delete("set-cookie");
+  }
   // TODO: Make an options for users to select which headers to trim.
   headers.delete("X-Frame-Options");
   headers.delete("Content-Security-Policy");
@@ -115,7 +113,7 @@ export const tweakHTML = async (
           return url_object.pathname + url_object.search + url_object.hash;
       }
 
-      const patched_origin =url_object.origin === request_url.origin
+      const patched_origin = url_object.origin === request_url.origin
         ? proxied_url.origin
         : url_object.origin;
 
@@ -210,8 +208,8 @@ export const tweakHTML = async (
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
     ${scriptContentCache
-    .replace("<<BASE_URL>>", proxied_url.href)
-    .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
+      .replace("<<BASE_URL>>", proxied_url.href)
+      .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
   </script>`);
 
   return $.html();
@@ -269,8 +267,7 @@ export const createProxiedResponse = async (
           console.log("[debug] yes there is > 2");
           request_url.searchParams.set(
             "origin",
-            `${request_url.protocol}//www.${split[split.length - 2]}.${
-              split[split.length - 1]
+            `${request_url.protocol}//www.${split[split.length - 2]}.${split[split.length - 1]
             }`
           );
         }
@@ -297,7 +294,10 @@ export const createProxiedResponse = async (
   const request_headers = new Headers(request.headers);
 
   // We get the cookies from our session.
-  const cookies = session.getCookiesAsStringFor(request_url.hostname, request_url.pathname);
+  const cached_cookies = session.getCookiesAsStringFor(request_url.hostname, request_url.pathname);
+  const user_cookies = request_headers.get("cookie") || "";
+  // We merge the cookies from the client and the ones from the session. The client's cookies have higher priority.
+  const cookies = user_cookies + (cached_cookies ? `; ${cached_cookies}` : "");
   request_headers.set("cookie", cookies);
 
   // We make sure that the host is the same as the one we're proxying.
@@ -314,7 +314,7 @@ export const createProxiedResponse = async (
   request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
   try {
-    console.log(request_headers.get("cookie"));
+    session.addCookies(request_headers.get("cookie") ?? "");
     const response = await fetch(request_url.href, {
       method: request.method,
       headers: request_headers,
@@ -326,9 +326,13 @@ export const createProxiedResponse = async (
     let cookies = response.headers.get("set-cookie") ?? "";
     //replace domain in cookies with our domain
     cookies = cookies.replace(/domain=[^;]+/g, `domain=${request_url.hostname}`);
+    session.addCookies(cookies);
     const response_headers = registerCookies(response, session);
     response_headers.delete("content-encoding");
-    response_headers.set("Set-Cookie", cookies);
+    //dont send cookies to user if they are http-only 
+    if (cookies.toLowerCase().includes("httponly")) {
+      response_headers.delete("set-cookie");
+    }
     const giveNewResponse = (
       body: ReadableStream<Uint8Array> | string | null
     ) =>

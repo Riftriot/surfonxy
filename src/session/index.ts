@@ -35,7 +35,7 @@ class Session {
     ).join("; ");
   }
 
-  public addCookies (cookies: string[]) {
+  public addCookies (cookies: string[] | string) {
     this.cookies.setCookies(cookies);
   }
 }
