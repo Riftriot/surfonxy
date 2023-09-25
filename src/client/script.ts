@@ -211,7 +211,18 @@ window.fetch = function () {
 const originalPostMessage = window.postMessage;
 window.postMessage = function () {
   if (typeof arguments[1] === "string") {
-    arguments[1] = transformUrl(arguments[1]);
+    // `targetOrigin` can be `"*"` according to MDN.
+    if (arguments[1] !== "*") {
+      // We wrap it in a try/catch because it can throw an error if the URL is invalid.
+      // If the URL is invalid, we just ignore it.
+      try {
+        const url = new URL(arguments[1]);
+        arguments[1] = transformUrl(url);
+      }
+      catch {
+        // Ignore.
+      }
+    }
   }
 
   // @ts-expect-error
