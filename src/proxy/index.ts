@@ -10,7 +10,6 @@ import {
 } from "../utils/constants";
 
 import { tweakJS } from "./tweaks/javascript";
-import { Cookie, CookieAccessInfo, CookieJar } from "cookiejar";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
@@ -208,8 +207,8 @@ export const tweakHTML = async (
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
     ${scriptContentCache
-      .replace("<<BASE_URL>>", proxied_url.href)
-      .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
+    .replace("<<BASE_URL>>", proxied_url.href)
+    .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
   </script>`);
 
   return $.html();
