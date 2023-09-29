@@ -6,11 +6,7 @@ const session = createSession();
 
 const WEBSOCKET_BASE_PATH = "/__surfonxy_websocket__";
 
-new Elysia({ serve: {
-  tls: {
-    
-  }
-}})
+new Elysia()
   .use(ws())
   .ws(WEBSOCKET_BASE_PATH + "/*", makeProxyWebSocketHandler(WEBSOCKET_BASE_PATH) as Omit<Partial<WebSocketHandler<Context>>, "publish" | "open" | "message" | "close" | "drain" | "publishToSelf">)
   .all("*", ({ request }) => {
