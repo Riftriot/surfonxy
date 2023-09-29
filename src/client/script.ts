@@ -208,27 +208,6 @@ window.fetch = function () {
   return originalFetch.apply(this, arguments);
 };
 
-const originalPostMessage = window.postMessage;
-window.postMessage = function () {
-  if (typeof arguments[1] === "string") {
-    // `targetOrigin` can be `"*"` according to MDN.
-    if (arguments[1] !== "*") {
-      // We wrap it in a try/catch because it can throw an error if the URL is invalid.
-      // If the URL is invalid, we just ignore it.
-      try {
-        const url = new URL(arguments[1]);
-        arguments[1] = transformUrl(url);
-      }
-      catch {
-        // Ignore.
-      }
-    }
-  }
-
-  // @ts-expect-error
-  originalPostMessage.apply(this, arguments);
-};
-
 const sendBeaconOriginal = navigator.sendBeacon;
 navigator.sendBeacon = function () {
   if (typeof arguments[0] === "string")
@@ -426,4 +405,34 @@ for (const classElementRaw in prototypesToFix) {
       original.apply(this, arguments);
     };
   }
+})();
+
+(function patchPostMessage () {
+  const originalPostMessage = window.postMessage;
+  window.postMessage = function () {
+    if (typeof arguments[1] === "string") {
+      // `targetOrigin` can be `"*"` according to MDN.
+      if (arguments[1] !== "*") {
+        arguments[1] = "*";
+      }
+    }
+
+    // @ts-expect-error
+    originalPostMessage.apply(this, arguments);
+  };
+})();
+
+(function patchMessageEvent () {
+  const proto = window.MessageEvent.prototype;
+  const origin_descriptor = Object.getOwnPropertyDescriptor(proto, "origin") as PropertyDescriptor;
+
+  origin_descriptor.get = function () {
+    // TODO
+    console.log("MessageEvent.origin.get", arguments);
+  };
+
+  origin_descriptor.set = function () {
+    // TODO
+    console.log("MessageEvent.origin.set", arguments);
+  };
 })();
