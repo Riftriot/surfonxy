@@ -227,13 +227,10 @@ export const createProxiedResponse = async (
   }
 ): Promise<Response> => {
   /** The original URL, from the client. */
-  console.log("request url is:", request.url);
   const request_proxy_url = new URL(request.url);
   if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
     return getServiceWorker();
   }
-
-  // console.log("request_proxy_url", request_proxy_url);
 
   const encoded_request_url = request_proxy_url.searchParams.get(
     SURFONXY_URI_ATTRIBUTES.URL
@@ -254,8 +251,11 @@ export const createProxiedResponse = async (
       decoded_request_url
     );
 
+    console.log(request_url.toString(), "<-", request_proxy_url.toString());
+    
+    // specific patch for google.com's iframe
+    // TODO: patch this in a better way, it should be done from the client (needs better tweakJS function for window.location)
     const origin = request_url.searchParams.get("origin");
-
     if (origin) {
       console.log("[debug] yes there is origin");
 
@@ -302,7 +302,7 @@ export const createProxiedResponse = async (
   // We make sure that the host is the same as the one we're proxying.
   request_headers.set("Host", request_url.host);
 
-  // These values should be proxied in the future.
+  // TODO: proxy
   request_headers.delete("origin");
   request_headers.delete("referer");
 
@@ -321,27 +321,29 @@ export const createProxiedResponse = async (
       redirect: "manual"
     });
 
-    console.log(response.status, response.url);
     let cookies = response.headers.get("set-cookie") ?? "";
-    //replace domain in cookies with our domain
+    // replace domain in cookies with our domain
     cookies = cookies.replace(/domain=[^;]+/g, `domain=${request_url.hostname}`);
     session.addCookies(cookies);
     const response_headers = registerCookies(response, session);
     response_headers.delete("content-encoding");
-    //dont send cookies to user if they are http-only 
+    // don't send cookies to user if they are http-only 
     if (cookies.toLowerCase().includes("httponly")) {
       response_headers.delete("set-cookie");
     }
+
+    /** helper to return a response using status from actual response and tweaked headers. */
     const giveNewResponse = (
       body: ReadableStream<Uint8Array> | string | null
-    ) =>
+    ) => (
       new Response(body, {
         headers: response_headers,
 
         // Just give the actual values.
         status: response.status,
         statusText: response.statusText,
-      });
+      })
+    );
 
     // When there's a redirection
     if (response.status >= 300 && response.status <= 399) {
@@ -360,6 +362,8 @@ export const createProxiedResponse = async (
         );
 
         response_headers.set("location", new_redirection_url.href);
+        // TODO: see if the :80 issue on redirection comes from this
+        console.info("Made a redirection to ->", new_redirection_url.href);
         return giveNewResponse(null);
       }
     }
@@ -374,26 +378,6 @@ export const createProxiedResponse = async (
       if (isServiceWorkerReady) {
         let content = await response.text();
 
-        if (contentType.includes("text/css")) {
-          console.log("[debug] got a css file, searching for url() function.");
-          const regex = /url\((?:(["'])([^"']*)\1|([^)]+))\)/g; // catches all links inside url()
-
-          let match;
-          while ((match = regex.exec(content))) {
-            const url = match[2] || match[3];
-
-            const newUrl = new URL(url);
-            newUrl.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
-            newUrl.searchParams.set(
-              SURFONXY_URI_ATTRIBUTES.URL,
-              btoa(options.WEBSOCKET_PROXY_PATH)
-            );
-
-            content.replace(url, newUrl.href);
-            console.log(`[debug][css url() replacement]: ${url} -> ${newUrl}`);
-          }
-        }
-
         content = await tweakHTML(
           content,
           request_proxy_url,
@@ -404,6 +388,7 @@ export const createProxiedResponse = async (
         return giveNewResponse(content);
       }
       else {
+        // installing service-worker page before showing the actual page
         return giveNewResponse(`
           <!DOCTYPE html>
           <html>
@@ -444,7 +429,7 @@ export const createProxiedResponse = async (
               <p>You'll be automatically redirected to the proxied page when the worker has been activated.</p>
             </body>
           </html>
-        `);
+        `.trim());
       }
     }
     // Also tweak JavaScript files.
