@@ -11,16 +11,15 @@
     "@types/trusted-types": "^2.0.3",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
-    "bun-types": "^0.7.3",
+    "bun-types": "1.0.3",
     "eslint": "^8.49.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@elysiajs/cookie": "^0.6.0",
     "astring": "^1.8.6",
     "cheerio": "^1.0.0-rc.12",
     "cookiejar": "^2.1.4",
-    "elysia": "^0.6.3",
+    "elysia": "^0.7.15",
     "estree-toolkit": "^1.7.3",
     "meriyah": "^4.3.7",
     "tcp-websocket": "^0.1.1"
