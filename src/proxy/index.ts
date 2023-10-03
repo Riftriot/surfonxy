@@ -1,8 +1,7 @@
 import type Session from "../session";
-import * as cheerio from "cheerio";
+import type { ProxyOptions } from "./types";
 
 import {
-  SURFONXY_GENERATED_ATTRIBUTE,
   SURFONXY_LOCALSTORAGE_SESSION_ID_KEY,
   SURFONXY_SERVICE_WORKER_PATH,
   SURFONXY_URI_ATTRIBUTES,
@@ -10,6 +9,9 @@ import {
 } from "../utils/constants";
 
 import { tweakJS } from "./tweaks/javascript";
+import { tweakHTML } from "./tweaks/html";
+
+import { getRequestURL } from "./utils/request";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
@@ -61,164 +63,6 @@ const registerCookies = (response: Response, session: Session) => {
   return headers;
 };
 
-let scriptContentCache: string | undefined;
-
-export const tweakHTML = async (
-  content: string,
-  request_url: URL,
-  proxied_url: URL,
-  options: ProxyOptions
-): Promise<string> => {
-  const $ = cheerio.load(content);
-
-  if (!scriptContentCache) {
-    const result = await Bun.build({
-      entrypoints: [
-        Bun.fileURLToPath(new URL("../client/script.ts", import.meta.url)),
-      ],
-      target: "browser",
-      minify: false,
-    });
-
-    scriptContentCache = await result.outputs[0].text();
-  }
-
-  const transformUrl = (url: string) => {
-    if (url.startsWith("data:")) return url;
-    if (url[0] === "#") return url;
-
-    try {
-      if (url[0] === "/" && url[1] !== "/") {
-        const url_object = new URL(url, request_url.origin);
-        url_object.searchParams.set(
-          SURFONXY_URI_ATTRIBUTES.URL,
-          btoa(proxied_url.origin)
-        );
-        url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
-        return url_object.pathname + url_object.search + url_object.hash;
-      }
-
-      // We should add origin for double slashes URLs.
-      const url_object = url[1] === "/" ? new URL(url, request_url.origin) : new URL(url);
-
-      // URLs like `ms-windows-store://home/` or `mailto:...` have a
-      // `"null"` origin, ignore them.
-      if (url_object.origin === "null") return url;
-
-      // We ignore already patched requests.
-      if (url_object.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
-        // Only ignore if the origin was patched as well.
-        if (url_object.origin === request_url.origin)
-          return url_object.pathname + url_object.search + url_object.hash;
-      }
-
-      const patched_origin = url_object.origin === request_url.origin
-        ? proxied_url.origin
-        : url_object.origin;
-
-      const patched_url = new URL(
-        url_object.pathname + url_object.search + url_object.hash,
-        request_url.origin
-      );
-      patched_url.searchParams.set(
-        SURFONXY_URI_ATTRIBUTES.URL,
-        btoa(patched_origin)
-      );
-      patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
-
-      return patched_url.pathname + patched_url.search + patched_url.hash;
-    }
-    catch (err) {
-      console.error(url, JSON.stringify(err, Object.getOwnPropertyNames(err)));
-      return url;
-    }
-  };
-
-  $("[href]").each(function () {
-    const current_href = $(this).attr("href");
-    if (!current_href) return;
-
-    $(this).attr("href", transformUrl(current_href));
-  });
-
-  $("[src]").each(function () {
-    const current_src = $(this).attr("src");
-    if (!current_src) return;
-
-    $(this).attr("src", transformUrl(current_src));
-  });
-
-  // $("form[action]").each((_, item) => {
-  //   item.attribs.action = transformUrl(item.attribs.action);
-  // });
-
-  // We travel through every inline scripts, and tweak them.
-  $("script")
-    .not("[src]")
-    .each(function () {
-      const new_script_content = tweakJS($(this).html() as string);
-      $(this).html(new_script_content);
-    });
-
-  // We travel through every scripts and we remove the integrity attribute.
-  $("script[integrity]").each(function () {
-    $(this).removeAttr("integrity");
-  });
-
-  // Rewrite URLs in `meta[http-equiv="refresh"]`.
-  // The content could look like this, `0;url=...`
-  $("meta[http-equiv=\"refresh\"]").each(function () {
-    const content = $(this).attr("content")?.split(";");
-    if (typeof content === "undefined") return;
-
-    const delay = content[0];
-    let url = content[1];
-
-    if (typeof url === "undefined") return;
-
-    // We only want content after the `url=`.
-    url = url.slice(4);
-
-    const origin = url.startsWith("/")
-      ? proxied_url.origin
-      : new URL(url).origin;
-    const url_object = new URL(url, origin); // We only put the origin here to have a valid URL.
-    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(origin));
-    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
-
-    url = "url=" + url_object.pathname + url_object.search;
-
-    $(this).attr("content", [delay, url].join(";"));
-  });
-
-  // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
-  // > Rewrites every relative URLs in the DOM.
-  // > There can be only one `<base>` element.
-  // const base_element_href = $("head base").prop("href");
-  // if (!base_element_href) {
-  //   $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
-  // }
-
-  // Remove every <base> elements from DOM.
-  $("head base").each(function () {
-    $(this).remove();
-  });
-
-  // Add our client script at the beginning of the `head` of the document.
-  $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
-    ${scriptContentCache
-    .replace("<<BASE_URL>>", proxied_url.href)
-    .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
-  </script>`);
-
-  return $.html();
-};
-
-export interface ProxyOptions {
-  /** Should have no trailing slash. */
-  WEBSOCKET_PROXY_PATH: string;
-}
-
 export const createProxiedResponse = async (
   request: Request,
   session: Session,
@@ -226,21 +70,17 @@ export const createProxiedResponse = async (
     WEBSOCKET_PROXY_PATH: "/__surfonxy_websocket__",
   }
 ): Promise<Response> => {
-  /** The original URL, from the client. */
-  const request_proxy_url = new URL(request.url);
+  const request_proxy_url = getRequestURL(request);
   if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
     return getServiceWorker();
   }
 
-  const encoded_request_url = request_proxy_url.searchParams.get(
-    SURFONXY_URI_ATTRIBUTES.URL
-  );
+  const encoded_request_url = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
   if (!encoded_request_url) {
-    console.error("NO URL", request.url);
+    console.error("NO URL", request_proxy_url.href);
     return new Response("No URL provided in the URL search parameter.", {
       status: 400,
     });
-    // throw new Error(`No URL provided in the "${SURFONXY_URI_ATTRIBUTES.URL}" search parameter, on ${request_proxy_url.href}.`);
   }
 
   let request_url: URL;
