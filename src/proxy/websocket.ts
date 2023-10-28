@@ -91,3 +91,7 @@ export const makeProxyWebSocketHandler = <T extends {
       this.proxiedWebSocket?.close(reason, code);
     },
   });
+
+// This is only for Elysia users who needs strict types.
+import type { Context } from "elysia";
+export type ProxyWebSocketElysiaHandler = Omit<Partial<WebSocketHandler<Context>>, "publish" | "open" | "message" | "close" | "drain" | "publishToSelf">
