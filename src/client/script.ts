@@ -17,6 +17,9 @@ const PROXY_SESSION_ID = localStorage.getItem(
 ) as string;
 
 (function checkInitialURIParameters() {
+  // we can safely ignore about:* URLs.
+  if (window.location.href.startsWith("about:")) return;
+
   const url = new URL(window.location.href);
   if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY)) {
     url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
@@ -33,6 +36,10 @@ window.origin = BASE_URL.origin;
 
 // Add this to prevent unregister.
 window.addEventListener("load", () => {
+  // Can be `null`.
+  // We don't use the "===" here because we want to catch `"null"` as well.
+  if (PROXY_ORIGIN == "null") return;
+
   navigator.serviceWorker.register(
     new URL(createSurfonxyServiceWorkerPath(PROXY_SESSION_ID), PROXY_ORIGIN)
   );
