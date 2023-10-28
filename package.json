@@ -3,23 +3,23 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch run index.ts",
     "lint": "eslint --ext .ts ."
   },
   "devDependencies": {
-    "@types/cookiejar": "^2.1.2",
-    "@types/trusted-types": "^2.0.3",
-    "@typescript-eslint/eslint-plugin": "^6.7.0",
-    "@typescript-eslint/parser": "^6.7.0",
+    "@elysiajs/static": "^0.7.1",
+    "@types/cookiejar": "^2.1.3",
+    "@types/trusted-types": "^2.0.5",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
     "bun-types": "latest",
-    "eslint": "^8.49.0",
-    "typescript": "^5.0.0"
+    "elysia": "^0.7.21",
+    "eslint": "^8.52.0",
+    "typescript": "^5.2.2"
   },
   "dependencies": {
     "astring": "^1.8.6",
     "cheerio": "^1.0.0-rc.12",
     "cookiejar": "^2.1.4",
-    "elysia": "^0.7.15",
     "estree-toolkit": "^1.7.3",
     "meriyah": "^4.3.7",
     "tcp-websocket": "^0.1.1"
