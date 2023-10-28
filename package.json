@@ -11,7 +11,7 @@
     "@types/trusted-types": "^2.0.3",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
-    "bun-types": "1.0.3",
+    "bun-types": "latest",
     "eslint": "^8.49.0",
     "typescript": "^5.0.0"
   },
