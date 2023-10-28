@@ -21,7 +21,7 @@ export const tweakHTML = async (
   if (!scriptContentCache) {
     const result = await Bun.build({
       entrypoints: [
-        Bun.fileURLToPath(new URL("../client/script.ts", import.meta.url)),
+        Bun.fileURLToPath(new URL("../../client/script.ts", import.meta.url)),
       ],
       target: "browser",
       minify: false,
