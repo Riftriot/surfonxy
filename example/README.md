@@ -8,9 +8,9 @@ It includes an usage of the library with Elysia on the port 443, but also anothe
 
 Inside the `public` directory, you'll find some HTML files that are used to test the proxy.
 
-You can access them via the proxy server on <https://surfonxy.dev> just by using the `MTI3LjAuMC4xOjgwMDA=` origin (which is `127.0.0.1:8000` encoded in base64).
+You can access them via the proxy server on <https://surfonxy.dev> just by using the `aHR0cDovL2xvY2FsaG9zdDo4MDAw` origin (which is `http://localhost:8000` encoded in base64).
 
-- [ ] `<iframe>` elements : [`/iframe.html`](./public/iframe.html) • [surfonxy.dev](https://surfonxy.dev/iframe.html?__surfonxy_url=MTI3LjAuMC4xOjgwMDA=)
+- [ ] `<iframe>` elements : [`/iframe.html`](./public/iframe.html) • [surfonxy.dev](https://surfonxy.dev/iframe.html?__surfonxy_url=aHR0cDovL2xvY2FsaG9zdDo4MDAw)
 
 ## Build the `https` certificate for local `surfonxy.dev`
 

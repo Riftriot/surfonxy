@@ -28,13 +28,16 @@ proxy.listen({
   port: 443,
   hostname: "surfonxy.dev"
 }, (server) => {
-  console.info(`[elysia]: Running on https://${server.hostname}`);
+  console.info(`[proxy]: Running on https://${server.hostname}`);
 });
 
-const tests = new Elysia()
+const tests = new Elysia();
+tests.get("/", () => Bun.file("./public/index.html"));
 // Deploy the `tests` folder on the root of that server.
-  .use(staticPlugin({
-    prefix: "/"  
-  }));
+tests.use(staticPlugin({
+  prefix: "/"  
+}));
 
-tests.listen(8080);
+tests.listen(8000, (server) => {
+  console.info(`[tests]: Running on http://localhost:${server.port}`);
+});
