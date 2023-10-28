@@ -61,6 +61,6 @@ You should run `sudo bun dev` to have the rights to use the port `443`.
 
 ## Run the example
 
-Simply run `bun dev` or `sudo bun dev`, if needed, and go to <https://surfonxy.dev> to see the test server running.
+Simply run `bun dev` or `sudo bun dev`, if needed, and go to <https://surfonxy.dev> to see the proxy server running.
 
 You can also go to <http://localhost:8000> to see the test server ([`public` folder](./public/)) running without the proxy.
