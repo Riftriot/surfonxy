@@ -88,28 +88,3 @@ In the future, we should also use an AST to parse the JS code to rewrite usage o
 | Command | Description |
 | ------- | ----------- |
 | `bun lint` | Lints the codebase using `eslint`. |
-| `bun dev` | Runs the [test Elysia server](./index.ts) on `localhost:443`. |
-
-### Use an `https` local development server
-
-> <https://web.dev/how-to-use-local-https/#running-your-site-locally-with-https-using-mkcert-recommended>
-
-First, install `mkcert` - `sudo pacman -S mkcert` on Arch Linux for example. Then run `mkcert -install`, restart your browsers if needed.
-
-Then, we're going to make a new host `surfonxy.dev` in our `/etc/hosts` file.
-  
-```bash
-echo "127.0.0.1 surfonxy.dev" | sudo tee -a /etc/hosts
-```
-
-Finally, we're going to create a certificate for this host, using `mkcert surfonxy.dev` in this directory. Now you can run `bun dev` and go to <https://surfonxy.dev> to see the test server running.
-
-If you get the following error...
-
-```console
-$ bun dev
-EADDRINUSE: Failed to start server. Is port 443 in use?
- syscall: "listen"
-```
-
-... it means that you should run `sudo bun dev` to be able to use port `443`.
