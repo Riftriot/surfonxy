@@ -14,7 +14,12 @@ export const tweakHTML = async (
   content: string,
   request_url: URL,
   proxied_url: URL,
-  options: ProxyOptions
+  options: ProxyOptions,
+  /**
+   * If the content is from a `srcdoc` attribute, we don't want to tweak the
+   * location object, because of iframe.
+   */
+  isSrcDoc = false
 ): Promise<string> => {
   const $ = cheerio.load(content);
 
@@ -103,7 +108,7 @@ export const tweakHTML = async (
   $("script")
     .not("[src]")
     .each(function () {
-      const new_script_content = tweakJS($(this).html() as string);
+      const new_script_content = tweakJS($(this).html() as string, isSrcDoc);
       $(this).html(new_script_content);
     });
 
@@ -137,6 +142,18 @@ export const tweakHTML = async (
 
     $(this).attr("content", [delay, url].join(";"));
   });
+
+  const iframes: Array<cheerio.Cheerio<cheerio.Element>> = [];
+  $("iframe[srcdoc]").each(function () {
+    const current_srcdoc = $(this).attr("srcdoc");
+    if (!current_srcdoc) return;
+    
+    iframes.push($(this));
+  });
+
+  for (const iframe of iframes) {
+    iframe.attr("srcdoc", await tweakHTML(iframe.attr("srcdoc") as string, request_url, proxied_url, options, true));
+  }
 
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.

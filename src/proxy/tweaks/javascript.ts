@@ -8,7 +8,7 @@ const WINDOW_LOCATION_TWEAKED_PROPERTY = "__sf_location";
  * @param code Raw JavaScript code to tweak.
  * @returns Tweaked JavaScript code that should be used instead.
  */
-export const tweakJS = (code: string): string => {
+export const tweakJS = (code: string, isFromSrcDoc = false): string => {
   try {
     const ast = parse(code, {
       module: true
@@ -25,6 +25,8 @@ export const tweakJS = (code: string): string => {
           let object_name = path.node.object.name;
   
           if (object_name === "location") {
+            if (isFromSrcDoc) return;
+
             path.node.object.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
             return;
           }
@@ -44,6 +46,7 @@ export const tweakJS = (code: string): string => {
           if (path.node.property.type === "Identifier" && path.node.property.name === "location") {
             // only if the window variable was not redefined before
             if (path.scope.hasBinding("window")) return;
+            if (isFromSrcDoc) return;
             
             path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
           }
