@@ -45,7 +45,7 @@ You'll see two new files in your current directory, `surfonxy.dev.pem` and `surf
 
 Move them in this `example` directory. On WSL2, you just drag the created certificates into the `example` folder.
 
-You're now ready ! You can run `bun dev` and go to <https://surfonxy.dev> to see the test server running.
+You're now ready ! You can run `bun index.ts` and go to <https://surfonxy.dev> to see the test server running.
 
 ### `EADDRINUSE`
 
@@ -57,10 +57,10 @@ EADDRINUSE: Failed to start server. Is port 443 in use?
  syscall: "listen"
 ```
 
-You should run `sudo bun dev` to have the rights to use the port `443`.
+You should run `sudo bun index.ts` to have the rights to use the port `443`.
 
 ## Run the example
 
-Simply run `bun dev` or `sudo bun dev`, if needed, and go to <https://surfonxy.dev> to see the proxy server running.
+Simply run `bun index.ts` or `sudo bun index.ts`, if needed, and go to <https://surfonxy.dev> to see the proxy server running.
 
 You can also go to <http://localhost:8000> to see the test server ([`public` folder](./public/)) running without the proxy.
