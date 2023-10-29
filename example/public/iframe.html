@@ -37,6 +37,7 @@
 
         document.getElementById('results').innerHTML = [
           'window.location.href: ' + checkValue(window.location.href, 'about:srcdoc'),
+          'document.location.href: ' + checkValue(document.location.href, 'about:srcdoc'),
           'document.referrer: ' + checkValue(document.referrer, 'http://localhost:8000/'),
           'window.parent.location.href: ' + checkValue(window.parent.location.href, 'http://localhost:8000/iframe.html'),
           'window.parent.document.referrer: ' + checkValue(window.parent.document.referrer, 'http://localhost:8000/'),
@@ -44,6 +45,11 @@
           'top.location.href: ' + checkValue(top.location.href, 'http://localhost:8000/iframe.html'),
           'parent.location.href: ' + checkValue(parent.location.href, 'http://localhost:8000/iframe.html'),
           'globalThis.window.parent.location.href: ' + checkValue(globalThis.window.parent.location.href, 'http://localhost:8000/iframe.html'),
+          'window.parent.document.location.href: ' + checkValue(window.parent.document.location.href, 'http://localhost:8000/iframe.html'),
+          'parent.document.location.href: ' + checkValue(parent.document.location.href, 'http://localhost:8000/iframe.html'),
+          'top.document.location.href: ' + checkValue(top.document.location.href, 'http://localhost:8000/iframe.html'),
+          'globalThis.window.parent.document.location.href: ' + checkValue(globalThis.window.parent.document.location.href, 'http://localhost:8000/iframe.html'),
+          'globalThis.window.top.document.location.href: ' + checkValue(globalThis.window.top.document.location.href, 'http://localhost:8000/iframe.html'),
         ].join('<br>')
       </script>
     "

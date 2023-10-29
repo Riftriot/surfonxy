@@ -98,36 +98,6 @@ export const createProxiedResponse = async (
     // debug: we log every requests made in the proxy and
     // the real value for easier debugging.
     console.info("[req]", request_url.toString(), "<->", request_proxy_url.toString());
-    
-    // specific patch for google.com's iframe
-    // TODO: patch this in a better way, it should be done from the client (needs better tweakJS function for window.location)
-    // const origin = request_url.searchParams.get("origin");
-    // if (origin) {
-    //   console.log("[debug] yes there is origin");
-
-    //   if (request_url.host) {
-    //     console.log("[debug] yes there is host");
-    //     const split = request_url.host.split(".");
-    //     if (split.length > 2) {
-    //       console.log("[debug] yes there is > 2");
-    //       request_url.searchParams.set(
-    //         "origin",
-    //         `${request_url.protocol}//www.${split[split.length - 2]}.${split[split.length - 1]
-    //         }`
-    //       );
-    //     }
-    //     else {
-    //       request_url.searchParams.set(
-    //         "origin",
-    //         `${request_url.protocol}//${request_url.host}`
-    //       );
-    //       console.log("[debug] no there's no > 2");
-    //     }
-
-    //     console.log("[after_origin_patch] request_url:", request_url);
-    //     // request_url.href =  request_url.toString();
-    //   }
-    // }
   }
   catch (error) {
     // TODO: Add a better error handling, with custom Error class.
