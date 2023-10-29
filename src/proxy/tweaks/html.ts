@@ -40,6 +40,18 @@ export const tweakHTML = async (
     if (url[0] === "#") return url;
 
     try {
+      /**
+       * URLs like `href="something.html"`
+       */
+      if (url[0] !== "/" && !url.startsWith("http")) {
+        // remove the last part of the URL (the file name)
+        const request_url_pathname = request_url.pathname.split("/");
+        request_url_pathname.pop();
+        request_url_pathname.push(url);
+        url = request_url_pathname.join("/");
+      }
+
+      /** URLs like `href="//example.com/..."` */
       if (url[0] === "/" && url[1] !== "/") {
         const url_object = new URL(url, request_url.origin);
         url_object.searchParams.set(

@@ -443,3 +443,68 @@ for (const classElementRaw in prototypesToFix) {
     console.log("MessageEvent.origin.set", arguments);
   };
 })();
+
+(function addProxyToDocumentReferrer () {
+  const proto = window.Document.prototype;
+  Object.defineProperty(proto, "__sf_referrer", {
+    
+    /**
+     * Fix `https://surfonxy.dev/iframe.html?__surfonxy_url=aHR0cDovL2xvY2FsaG9zdDo4MDAw` instead of `http://localhost:8000/` issues.
+     * We should read the URL from the `document.referrer` and parse the URL to
+     * rebuild the original one.
+     */
+    get (): string {
+      const original_raw_url = document.referrer;
+      if (!original_raw_url) {
+        // If we're in an iframe, take the parent location,
+        // according to MDN: <https://developer.mozilla.org/en-US/docs/Web/API/Document/referrer#value>
+        if (window !== window.parent) {
+          // @ts-expect-error
+          return window.parent["__sf_location"].protocol + "//" + window.parent["__sf_location"].host + "/";
+        }
+        else return "";
+      }
+
+      // Check if it's a parsable URL.
+      // NOTE: Check if it's possible to have a URL that is not parsable.
+      if (!original_raw_url.startsWith("http")) {
+        // We give the original value, in case it might be useful.
+        return original_raw_url;
+      }
+
+      // Parse the URL from the referrer.
+      const original_url = new URL(original_raw_url);
+
+      // Get the origin from the searchParams.
+      let origin = original_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+      if (!origin) {
+        console.error("surfonxy: no origin found in the referrer ::", original_url);
+        return original_raw_url;
+      }
+
+      // Decode the origin from the searchParams.
+      try {
+        origin = atob(origin);
+      }
+      catch {
+        console.error("surfonxy: invalid base64 origin in the referrer ::", origin);
+        return original_raw_url;
+      }
+
+      // Rebuild the original URL.
+      const url = new URL(
+        original_url.pathname + original_url.search + original_url.hash,
+        origin
+      );
+
+      // Remove attributes needed for Surfonxy.
+      url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+      url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
+
+      return url.href;
+    },
+
+    // Should be read-only, so we don't need to implement this.
+    set() {}
+  });
+})();

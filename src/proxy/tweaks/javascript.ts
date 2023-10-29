@@ -3,6 +3,10 @@ import { traverse } from "estree-toolkit";
 import { generate } from "astring";
 
 const WINDOW_LOCATION_TWEAKED_PROPERTY = "__sf_location";
+const DOCUMENT_REFERRER_TWEAKED_PROPERTY = "__sf_referrer";
+
+const keywords = ["window", "parent", "top", "document"];
+const isInKeywords = (value: string) => keywords.includes(value);
 
 /**
  * @param code Raw JavaScript code to tweak.
@@ -31,6 +35,7 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
         // Applied when using
         // `location.href`, `window.location`
         // and `top.location`, `parent.location`
+        // and `document.referrer`.
         if (path.node.object.type === "Identifier") {
           if (!path.scope) return;
   
@@ -45,61 +50,88 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
             return;
           }
           
-          // When we're not accessing through `window`.
           // Check if `object_name` is a binding.
-          if (object_name !== "window" && object_name !== "parent" && object_name !== "top") {
+          if (!isInKeywords(object_name)) {
             const bind = path.scope.getBinding(object_name);
             if (!bind) return;
   
             // Find the binding declaration
             if (bind.path.node && bind.path.node.type === "VariableDeclarator" && bind.path.node.init && bind.path.node.init.type === "Identifier") {
               // Check if it's a `window` variable.
-              if (bind.path.node.init.name === "window" || bind.path.node.init.name === "parent" || bind.path.node.init.name === "top") {
+              if (isInKeywords(bind.path.node.init.name)) {
                 object_name = bind.path.node.init.name;
               }
               else return; // It's useless
             }
           }
   
-          if (path.node.property.type === "Identifier" && path.node.property.name === "location") {
+          if (path.node.property.type === "Identifier") {
             // Prevent the rewrite if we already declared a similar variable before.
-            if (object_name === "top" && path.scope.hasBinding("top")) return;
-            if (object_name === "parent" && path.scope.hasBinding("parent")) return;
-            if (object_name === "window" && path.scope.hasBinding("window")) return;
-            
-            // On iframe with `srcdoc`, we don't want to tweak the `window.location` object
-            // because it'll be something like `about:srcdoc` which is not important to tweak.
-            if (isFromSrcDoc && object_name === "window") return;
-            
-            path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
+            if (path.scope.hasBinding(object_name)) return;
+
+            // Check if we access the `location` property.
+            if (object_name !== "document" && path.node.property.name === "location") {
+              // On iframe with `srcdoc`, we don't want to tweak the `window.location` object
+              // because it'll be something like `about:srcdoc` which is not important to tweak.
+              if (isFromSrcDoc && object_name === "window") return;
+              
+              path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
+            }
+            // Check if we access the `referrer` property, only for `document` object.
+            else if (object_name === "document" && path.node.property.name === "referrer") {
+              path.node.property.name = DOCUMENT_REFERRER_TWEAKED_PROPERTY;
+            }
           }
         }
 
         // Applied when using
         // `window.top.location` or `window.parent.location`
         // or `x.y..window.top.location` or `x.y..window.parent.location`
+        // or `x.y..document.referrer`.
         else if (path.node.object.type === "MemberExpression") {
-          // Check if we access the `location` property.
-          if (path.node.property.type !== "Identifier") return;
-          if (path.node.property.name !== "location") return;
+          let rewrite_document_referrer = false;
+          let rewrite_location = false;
           
-          // Second operand should be the identifier `top` or `parent`.
-          if (path.node.object.property.type !== "Identifier") return;
-          if (path.node.object.property.name !== "top" && path.node.object.property.name !== "parent") return;
-          
-          // First operand should be the identifier `window`.
-          // When `window.top.location` or `window.parent.location`.
+          // When `window.top.location` or `window.parent.location`
           if (path.node.object.object.type === "Identifier") {
-            if (path.node.object.object.name !== "window") return;
+            if (path.node.object.object.name === "window") rewrite_location = true;
+            else return;
           }
-          // When `x.y..window.top.location` or `x.y..window.parent.location`.
-          else if (path.node.object.object.type === "MemberExpression") {
-            if (path.node.object.object.property.type !== "Identifier") return;
-            if (path.node.object.object.property.name !== "window") return;
+          else if (path.node.object.type === "MemberExpression") {
+            if (path.node.object.property.type !== "Identifier") return;
+            
+            // When `x.y..document.referrer`.
+            if (path.node.object.property.name === "document") rewrite_document_referrer = true;
+
+            // When `x.y..window.top.location` or `x.y..window.parent.location`
+            else if (path.node.object.object.type === "MemberExpression") {
+              if (path.node.object.object.property.type !== "Identifier") return;
+              
+              if (path.node.object.object.property.name === "window") rewrite_location = true;
+              else return;
+            }
           }
-        
-          // When everything is matched, we can tweak the code.
-          path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
+
+          // Second operand should be an identifier...
+          if (path.node.object.property.type !== "Identifier") return;
+
+          // `top` or `parent` for `rewrite_location`.
+          if (rewrite_location && path.node.object.property.name !== "top" && path.node.object.property.name !== "parent") return;
+          // `document` for `rewrite_document_referrer`.
+          else if (rewrite_document_referrer && path.node.object.property.name !== "document") return;
+
+          // Check if the accessed property is an identifier.
+          if (path.node.property.type !== "Identifier") return;
+          
+          if (rewrite_location) {
+            if (path.node.property.name !== "location") return;
+            path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
+          }
+          
+          else if (rewrite_document_referrer)  {
+            if (path.node.property.name !== "referrer") return;
+            path.node.property.name = DOCUMENT_REFERRER_TWEAKED_PROPERTY;
+          }
         }
       }
     });
@@ -108,7 +140,11 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
   }
   catch (error) {
     console.error("[tweakJS]:", error);
+
     // We can't tweak the code, so we just return the original code with a bulk replace.
-    return code.replaceAll("location", WINDOW_LOCATION_TWEAKED_PROPERTY);
+    // This is not perfect, but it's better than returning an empty script to client.
+    return code
+      .replaceAll("location", WINDOW_LOCATION_TWEAKED_PROPERTY)
+      .replaceAll("referrer", DOCUMENT_REFERRER_TWEAKED_PROPERTY);
   }
 };
