@@ -38,8 +38,8 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
   
           // If we access through the `location` object directly.
           if (object_name === "location") {
-            if (isFromSrcDoc) return;
             if (path.scope.hasBinding("location")) return;
+            if (isFromSrcDoc) return;
 
             path.node.object.name = WINDOW_LOCATION_TWEAKED_PROPERTY;
             return;
@@ -77,18 +77,26 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
 
         // Applied when using
         // `window.top.location` or `window.parent.location`
+        // or `x.y..window.top.location` or `x.y..window.parent.location`
         else if (path.node.object.type === "MemberExpression") {
           // Check if we access the `location` property.
           if (path.node.property.type !== "Identifier") return;
           if (path.node.property.name !== "location") return;
           
-          // First operand should be the identifier `window`.
-          if (path.node.object.object.type !== "Identifier") return;
-          if (path.node.object.object.name !== "window") return;
-
           // Second operand should be the identifier `top` or `parent`.
           if (path.node.object.property.type !== "Identifier") return;
           if (path.node.object.property.name !== "top" && path.node.object.property.name !== "parent") return;
+          
+          // First operand should be the identifier `window`.
+          // When `window.top.location` or `window.parent.location`.
+          if (path.node.object.object.type === "Identifier") {
+            if (path.node.object.object.name !== "window") return;
+          }
+          // When `x.y..window.top.location` or `x.y..window.parent.location`.
+          else if (path.node.object.object.type === "MemberExpression") {
+            if (path.node.object.object.property.type !== "Identifier") return;
+            if (path.node.object.object.property.name !== "window") return;
+          }
         
           // When everything is matched, we can tweak the code.
           path.node.property.name = WINDOW_LOCATION_TWEAKED_PROPERTY;

@@ -43,6 +43,7 @@
           'window.top.location.href: ' + checkValue(window.top.location.href, 'http://localhost:8000/iframe.html'),
           'top.location.href: ' + checkValue(top.location.href, 'http://localhost:8000/iframe.html'),
           'parent.location.href: ' + checkValue(parent.location.href, 'http://localhost:8000/iframe.html'),
+          'globalThis.window.parent.location.href: ' + checkValue(globalThis.window.parent.location.href, 'http://localhost:8000/iframe.html'),
         ].join('<br>')
       </script>
     "
