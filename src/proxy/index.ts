@@ -2,20 +2,19 @@ import type Session from "../session";
 import type { ProxyOptions } from "./types";
 
 import {
-  SURFONXY_LOCALSTORAGE_SESSION_ID_KEY,
   SURFONXY_SERVICE_WORKER_PATH,
-  SURFONXY_URI_ATTRIBUTES,
-  createSurfonxyServiceWorkerPath,
+  SURFONXY_URI_ATTRIBUTES
 } from "../utils/constants";
 
 import { tweakJS } from "./tweaks/javascript";
 import { tweakHTML } from "./tweaks/html";
 
 import { getRequestURL } from "./utils/request";
+import { getFirstLoadDocument } from "./templates/first-load";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
-const getServiceWorker = async () => {
+const serviceWorker = async () => {
   if (!workerContentCache) {
     const result = await Bun.build({
       entrypoints: [
@@ -72,56 +71,63 @@ export const createProxiedResponse = async (
 ): Promise<Response> => {
   const request_proxy_url = getRequestURL(request);
   if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
-    return getServiceWorker();
+    return serviceWorker();
   }
 
-  const encoded_request_url = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
-  if (!encoded_request_url) {
-    console.error("NO URL", request_proxy_url.href);
-    return new Response("No URL provided in the URL search parameter.", {
+  // When getting from the search params it could be `string | null`.
+  // `string` because we get the base64 encoded value of the origin.
+  let request_url: string | URL | null = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+  if (!request_url) {
+    console.error("NO ORIGIN GIVEN", request_proxy_url.href);
+    return new Response(`No ORIGIN provided in the "${SURFONXY_URI_ATTRIBUTES.URL}" search parameter.`, {
       status: 400,
     });
   }
 
-  let request_url: URL;
   try {
-    const decoded_request_url = atob(encoded_request_url);
+    // We build the URL from the base64 encoded value.
     request_url = new URL(
-      request_proxy_url.pathname + request_proxy_url.search,
-      decoded_request_url
+      request_proxy_url.pathname + request_proxy_url.search + request_proxy_url.hash,
+      // We decode the base64 value to get the origin.
+      atob(request_url)
     );
 
-    console.log(request_url.toString(), "<-", request_proxy_url.toString());
+    request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+    request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
+
+    // debug: we log every requests made in the proxy and
+    // the real value for easier debugging.
+    console.info("[req]", request_url.toString(), "<->", request_proxy_url.toString());
     
     // specific patch for google.com's iframe
     // TODO: patch this in a better way, it should be done from the client (needs better tweakJS function for window.location)
-    const origin = request_url.searchParams.get("origin");
-    if (origin) {
-      console.log("[debug] yes there is origin");
+    // const origin = request_url.searchParams.get("origin");
+    // if (origin) {
+    //   console.log("[debug] yes there is origin");
 
-      if (request_url.host) {
-        console.log("[debug] yes there is host");
-        const split = request_url.host.split(".");
-        if (split.length > 2) {
-          console.log("[debug] yes there is > 2");
-          request_url.searchParams.set(
-            "origin",
-            `${request_url.protocol}//www.${split[split.length - 2]}.${split[split.length - 1]
-            }`
-          );
-        }
-        else {
-          request_url.searchParams.set(
-            "origin",
-            `${request_url.protocol}//${request_url.host}`
-          );
-          console.log("[debug] no there's no > 2");
-        }
+    //   if (request_url.host) {
+    //     console.log("[debug] yes there is host");
+    //     const split = request_url.host.split(".");
+    //     if (split.length > 2) {
+    //       console.log("[debug] yes there is > 2");
+    //       request_url.searchParams.set(
+    //         "origin",
+    //         `${request_url.protocol}//www.${split[split.length - 2]}.${split[split.length - 1]
+    //         }`
+    //       );
+    //     }
+    //     else {
+    //       request_url.searchParams.set(
+    //         "origin",
+    //         `${request_url.protocol}//${request_url.host}`
+    //       );
+    //       console.log("[debug] no there's no > 2");
+    //     }
 
-        console.log("[after_origin_patch] request_url:", request_url);
-        // request_url.href =  request_url.toString();
-      }
-    }
+    //     console.log("[after_origin_patch] request_url:", request_url);
+    //     // request_url.href =  request_url.toString();
+    //   }
+    // }
   }
   catch (error) {
     // TODO: Add a better error handling, with custom Error class.
@@ -148,9 +154,6 @@ export const createProxiedResponse = async (
 
   // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
   request_headers.delete("accept-encoding");
-
-  request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
-  request_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
 
   try {
     session.addCookies(request_headers.get("cookie") ?? "");
@@ -211,11 +214,9 @@ export const createProxiedResponse = async (
     // When the content is HTML, we have to tweak the document a little...
     const contentType = response_headers.get("content-type");
     if (contentType?.includes("text/html")) {
-      const isServiceWorkerReady = request.url.includes(
-        `${SURFONXY_URI_ATTRIBUTES.READY}=1`
-      );
+      const isServiceWorkerReady = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY);
 
-      if (isServiceWorkerReady) {
+      if (isServiceWorkerReady === "1") {
         let content = await response.text();
 
         content = await tweakHTML(
@@ -228,48 +229,9 @@ export const createProxiedResponse = async (
         return giveNewResponse(content);
       }
       else {
+        const document = await getFirstLoadDocument(session.id);
         // installing service-worker page before showing the actual page
-        return giveNewResponse(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <script>
-                localStorage.setItem("${SURFONXY_LOCALSTORAGE_SESSION_ID_KEY}", "${session.id}");
-  
-                navigator.serviceWorker.register("${createSurfonxyServiceWorkerPath(session.id)}")
-                .then(reg => {
-                  const refresh = () => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set("${SURFONXY_URI_ATTRIBUTES.READY}", "1");
-                    window.location.href = url.href;
-                  }
-  
-                  if (reg.installing) {
-                    const sw = reg.installing || reg.waiting;
-                    sw.onstatechange = function() {
-                      if (sw.state === 'installed') {
-                        refresh();
-                      }
-                    };
-                  }
-                  else if (reg.active) {
-                    refresh();
-                  }
-                })
-                .catch(handleError)
-              
-                function handleError(error) {
-                  console.error(error);
-                }
-              </script>
-              <title>Loading...</title>
-            </head>
-            <body>
-              <h1>Wait, the service worker is loading !</h1>
-              <p>You'll be automatically redirected to the proxied page when the worker has been activated.</p>
-            </body>
-          </html>
-        `.trim());
+        return giveNewResponse(document);
       }
     }
     // Also tweak JavaScript files.
