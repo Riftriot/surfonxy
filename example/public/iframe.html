@@ -50,6 +50,8 @@
           'top.document.location.href: ' + checkValue(top.document.location.href, 'http://localhost:8000/iframe.html'),
           'globalThis.window.parent.document.location.href: ' + checkValue(globalThis.window.parent.document.location.href, 'http://localhost:8000/iframe.html'),
           'globalThis.window.top.document.location.href: ' + checkValue(globalThis.window.top.document.location.href, 'http://localhost:8000/iframe.html'),
+          'window.self.location.href: ' + checkValue(window.self.location.href, 'about:srcdoc'),
+          'self.location.href: ' + checkValue(self.location.href, 'about:srcdoc'),
         ].join('<br>')
       </script>
     "
