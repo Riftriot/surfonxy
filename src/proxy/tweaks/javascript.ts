@@ -21,6 +21,28 @@ export const tweakJS = (code: string, isFromSrcDoc = false): string => {
     traverse(ast, {
       $: { scope: true },
 
+      /**
+       * An attempt to patch objects referencing
+       * the `window` or `document`object.
+       */
+      Property (path) {
+        if (!path.node) return;
+        if (path.node.value.type === "Identifier") {
+          if (path.node.value.name === "window" || path.node.value.name === "globalThis" || path.node.value.name === "self") {
+            path.node.value.name = "window.__sf_fake_window";
+          }
+          else if (path.node.value.name === "document") {
+            path.node.value.name = "window.__sf_fake_window.document";
+          }
+        }
+        // else if (path.node.value.type === "ThisExpression") {
+        //   path.node.value = {
+        //     type: "Identifier",
+        //     name: "window.__sf_fake_window"
+        //   };
+        // }
+      },
+
       MemberExpression (path) {
         if (!path.node) return;
   
