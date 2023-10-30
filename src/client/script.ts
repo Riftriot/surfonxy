@@ -381,6 +381,34 @@ for (const classElementRaw in prototypesToFix) {
 //   }
 // })();
 
+const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
+  // if the very first character is a slash,
+  // we rebuild it as an absolute path.
+  if (original_url.toString().trim()[0] === "/") {
+    original_url = new URL(
+      original_url,
+      window.location.origin
+    );
+
+    // in case it was removed during the rebuild
+    original_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));
+  }
+
+  let patched_url = new URL(original_url);
+  if (patched_url.origin !== window.location.origin) {
+    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(patched_url.origin));
+
+    // we rebuild the url with the base origin.
+    patched_url = new URL(
+      patched_url.pathname + patched_url.search + patched_url.hash,
+      window.location.origin
+    );
+  }
+
+  patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+  return patched_url;
+};
+
 /**
  * We patch the `History` prototype.
  * Unlike `Location`, it is not read-only,
@@ -399,12 +427,13 @@ for (const classElementRaw in prototypesToFix) {
     const original = window.History.prototype[method];
 
     window.History.prototype[method] = function () {
-      const original_url = arguments[2];
+      const original_url: URL | string = arguments[2];
 
       // Third argument - so `arguments[2]` - is `url`, which is optional.
       // > URL must be of the same origin as the current URL; otherwise replaceState throws an exception.
       if (original_url) {
-        arguments[2] = transformUrl(arguments[2] as string | URL);
+        const patched_url = __sf_simple_rewrite_url(original_url);
+        arguments[2] = patched_url.href;
       }
 
       console.info(`[History.${method}]: ${original_url} -> ${arguments[2]}`);
@@ -412,6 +441,27 @@ for (const classElementRaw in prototypesToFix) {
       original.apply(this, arguments);
     };
   }
+})();
+
+(function patchIframePrototype() {
+  const prototype = window.HTMLIFrameElement.prototype;
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, "src") as PropertyDescriptor;
+  
+  const descriptor_set = descriptor.set;
+  const descriptor_get = descriptor.get;
+
+  descriptor.set = function (original_url: string) {
+    const patched_url = __sf_simple_rewrite_url(original_url);
+    return descriptor_set?.call(this, patched_url.href);
+  };
+
+  descriptor.get = function () {
+    const original_url = descriptor_get?.call(this);
+    console.log("iframe.get:", original_url);
+    return original_url;
+  };
+  
+  Object.defineProperty(prototype, "src", descriptor);
 })();
 
 (function patchPostMessage () {
