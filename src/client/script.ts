@@ -32,8 +32,6 @@ const PROXY_SESSION_ID = localStorage.getItem(
   window.history.replaceState(window.history.state, "", url);
 })();
 
-window.origin = BASE_URL.origin;
-
 // Add this to prevent unregister.
 window.addEventListener("load", () => {
   // Can be `null`.
