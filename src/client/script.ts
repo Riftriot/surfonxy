@@ -136,7 +136,24 @@ class SurfonxyLocation {
   }
 
   toString(): string {
-    return this.proxyUrl.href;
+    return this.href;
+  }
+
+  toJSON() {
+    const url = new URL(this.href);
+
+    return {
+      ancestorOrigins: {},
+      hash: url.hash,
+      host: url.host,
+      hostname: url.hostname,
+      href: url.href,
+      origin: url.origin,
+      pathname: url.pathname,
+      port: url.port,
+      protocol: url.protocol,
+      search: url.search
+    };
   }
 
   /**
@@ -161,59 +178,56 @@ window.__sf_location = SF_LOCATION;
 // Proxies the window location in the document.
 document.__sf_location = window.__sf_location;
 
-const transformUrl = (url_r: string | URL) => {
-  if (!url_r) return url_r;
-  const url = url_r.toString();
-
-  // Don't touch [data URLs](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-  if (url.startsWith("data:")) return url;
-  if (url[0] === "#") return url;
-
-  if (url[0] === "/" && url[1] !== "/") {
-    const url_object = new URL(url, window.location.origin);
-    url_object.searchParams.set(
-      SURFONXY_URI_ATTRIBUTES.URL,
-      btoa(BASE_URL.origin)
-    );
-    url_object.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
-    return url_object.pathname + url_object.search + url_object.hash;
-  }
-
-  // We should add origin for double slashes URLs.
-  const url_object =
-    url[1] === "/" ? new URL(url, window.location.origin) : new URL(url);
-
-  // We ignore already patched requests.
-  if (url_object.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
-    // Only ignore if the origin was patched as well.
-    if (url_object.origin === window.location.origin)
-      return url_object.pathname + url_object.search + url_object.hash;
-  }
-
-  const patched_origin =
-    url_object.origin === window.location.origin
-      ? BASE_URL.origin
-      : url_object.origin;
-
-  const patched_url = new URL(
-    url_object.pathname + url_object.search + url_object.hash,
-    window.location.origin
-  );
-  patched_url.searchParams.set(
-    SURFONXY_URI_ATTRIBUTES.URL,
-    btoa(patched_origin)
-  );
-  patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
-
-  return patched_url.pathname + patched_url.search + patched_url.hash;
-};
-
-const originalFetch = window.fetch;
-window.fetch = function () {
-  arguments[0] = transformUrl(arguments[0]);
+/**
+ * This is made for our AST while patching objects.
+ * We don't want to patch the `window` object, but
+ * what we can do is make another object in `window`
+ * that looks like window but with injected properties.
+ */
+(function initiateFakeVirtualWindow(){
   // @ts-expect-error
-  return originalFetch.apply(this, arguments);
-};
+  window.__sf_fake_window = {
+    ...window,
+
+    addEventListener: window.addEventListener,
+    removeEventListener: window.removeEventListener,
+
+    // Prevent to access original window using `window.window`.
+    get window () {
+      return this;
+    },
+
+    // Overwrite `window.location` to `window.__sf_location`.
+    get location() {
+      // @ts-expect-error
+      return window.__sf_location;
+    },
+    set location(value) {
+      // @ts-expect-error
+      window.__sf_location.replace(value);
+    },
+
+    document: {
+      ...window.document,
+
+      // Overwrite `window.document.referrer` to `window.document.__sf_referrer`.
+      get referrer() {
+        // @ts-expect-error
+        return window.document.__sf_referrer;
+      },
+
+      // Overwrite `window.document.location` to `window.document.__sf_location`.
+      get location() {
+        // @ts-expect-error
+        return window.__sf_location;
+      },
+      set location(value) {
+        // @ts-expect-error
+        window.__sf_location.replace(value);
+      },
+    }
+  };
+})();
 
 const sendBeaconOriginal = navigator.sendBeacon;
 navigator.sendBeacon = function () {
