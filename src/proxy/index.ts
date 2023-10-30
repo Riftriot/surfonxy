@@ -1,16 +1,16 @@
-import type Session from "../session";
-import type { ProxyOptions } from "./types";
+import type Session from "~/session";
+import type { ProxyOptions } from "~/proxy/types";
 
 import {
   SURFONXY_SERVICE_WORKER_PATH,
   SURFONXY_URI_ATTRIBUTES
-} from "../utils/constants";
+} from "~/utils/constants";
 
-import { tweakJS } from "./tweaks/javascript";
-import { tweakHTML } from "./tweaks/html";
+import { tweakJS } from "~/proxy/tweaks/javascript";
+import { tweakHTML } from "~/proxy/tweaks/html";
 
-import { getRequestURL } from "./utils/request";
-import { getFirstLoadDocument } from "./templates/first-load";
+import { getRequestURL } from "~/proxy/utils/request";
+import { getFirstLoadDocument } from "~/proxy/templates/first-load";
 
 let workerContentCache: string | undefined;
 /** Builds the service worker for the proxy. */
