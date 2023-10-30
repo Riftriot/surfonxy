@@ -1,5 +1,5 @@
 import type { WebSocketHandler } from "bun";
-import { SURFONXY_URI_ATTRIBUTES } from "../utils/constants";
+import { SURFONXY_URI_ATTRIBUTES } from "~/utils/constants";
 
 import TCPWebSocket from "tcp-websocket";
 
