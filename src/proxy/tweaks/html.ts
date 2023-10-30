@@ -166,19 +166,19 @@ export const tweakHTML = async (
   for (const iframe of iframes) {
     iframe.attr("srcdoc", await tweakHTML(iframe.attr("srcdoc") as string, request_url, proxied_url, options, true));
   }
-
+  
+  // Remove every <base> elements from DOM.
+  // $("head base").each(function () {
+  //   $(this).remove();
+  // });
+  
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.
   // > There can be only one `<base>` element.
-  // const base_element_href = $("head base").prop("href");
-  // if (!base_element_href) {
-  //   $("head").append(`<base href="${base_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
-  // }
-
-  // Remove every <base> elements from DOM.
-  $("head base").each(function () {
-    $(this).remove();
-  });
+  const base_element_href = $("head>base").prop("href");
+  if (!base_element_href) {
+    $("head").prepend(`<base href="${proxied_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
+  }
 
   // Add our client script at the beginning of the `head` of the document.
   $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
