@@ -14,6 +14,9 @@ const isInKeywords = (value: string) => keywords.includes(value);
  */
 export const tweakJS = (code: string, isFromSrcDoc = false): string => {
   try {
+    // force to use bulk for now
+    throw null;
+
     const ast = parse(code, {
       module: true
     });
