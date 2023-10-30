@@ -1,13 +1,11 @@
 /// <reference lib="WebWorker" />
-
-import {} from "./worker"; // Useless import to prevent typing issues.
 declare const self: ServiceWorkerGlobalScope;
 
 import { SURFONXY_URI_ATTRIBUTES } from "../utils/constants";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
-  console.info("[service-worker]: installed !");
+  console.info("worker: installed !");
 });
 
 self.addEventListener("activate", (event) => {
@@ -19,99 +17,109 @@ self.addEventListener("activate", (event) => {
 
       self.clients.claim();
       console.info(
-        "[service-worker]: activated, should be redirected as soon as claimed."
+        "worker: activated, should be redirected as soon as claimed."
       );
     })()
   );
 });
 
-let previous_client_url: string;
-
 self.addEventListener("fetch", (event) => {
   event.stopPropagation();
   event.stopImmediatePropagation();
 
-  const original_request = event.request;
-  const sendOriginalRequest = () => fetch(original_request);
+  const originalRequest = event.request;
+  const sendOriginalRequest = () => fetch(originalRequest);
 
   try {
     event.respondWith(
       (async () => {
         /** URL in the fetch. */
-        const original_request_url = new URL(original_request.url);
-        const client = await self.clients.get(event.clientId);
+        const originalRequestURL = new URL(originalRequest.url);
 
-        if (!client?.url && !previous_client_url) return sendOriginalRequest();
-        previous_client_url = client?.url ?? (previous_client_url as string);
-        const client_url = new URL(previous_client_url);
-
-        const proxy_origin_encoded = client_url.searchParams.get(
-          SURFONXY_URI_ATTRIBUTES.URL
-        );
-        if (!proxy_origin_encoded) return sendOriginalRequest();
-
-        let proxy_origin_decoded: string;
-        try {
-          // We wrap it in a try/catch to "catch" decoding errors.
-          proxy_origin_decoded = atob(decodeURIComponent(proxy_origin_encoded));
-        }
-        catch {
+        // Don't care about extensions, and anything that is not a *real* request.
+        if (!originalRequestURL.protocol.startsWith("http")) {
           return sendOriginalRequest();
         }
-
-        // We only handle `http` and `https` requests, for now.
-        if (!original_request_url.protocol.startsWith("http"))
-          return sendOriginalRequest();
 
         // We ignore already patched requests.
-        if (
-          original_request_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)
-        ) {
+        if (originalRequestURL.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL) === "1") {
           // Only ignore if the origin was patched as well.
-          if (original_request_url.origin === client_url.origin)
-            return sendOriginalRequest();
+          // NOTE: Why we had this again ??
+          // if (originalRequestURL.origin === originalClientURL.origin)
+          return sendOriginalRequest();
         }
 
-        // When the origin is the same, that means that it should be on the `currentlyProxyingURL` origin.
-        const patched_origin =
-          original_request_url.origin === client_url.origin
-            ? proxy_origin_decoded
-            : original_request_url.origin;
+        const client = await self.clients.get(event.clientId);
+        if (!client?.url) return sendOriginalRequest();
 
-        const patched_url = new URL(
-          original_request_url.pathname +
-            original_request_url.search +
-            original_request_url.hash,
-          client_url.origin
+        // previous_client_url = client?.url ?? (previous_client_url as string);
+        const originalClientURL = new URL(client.url);
+
+        // Get the real origin.
+        let clientURL: URL | string | null = originalClientURL.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
+        if (clientURL === null) {
+          console.warn(`worker: no "${SURFONXY_URI_ATTRIBUTES.URL}" found in original client URL.`);
+          return sendOriginalRequest();
+        }
+
+        // decode the whole real URL
+        try {
+          clientURL = new URL(
+            originalClientURL.pathname + originalClientURL.search + originalClientURL.hash,
+            atob(decodeURIComponent(clientURL))
+          );
+
+          clientURL.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+          clientURL.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
+        }
+        catch {
+          console.warn(`worker: "${SURFONXY_URI_ATTRIBUTES.URL}" is not a valid base64 encoded value.`);
+          return sendOriginalRequest();
+        }
+
+        // TODO: handle requests that are from our domains
+        // note: can maybe a pain to fix, depending on the clientURL
+        if (originalClientURL.origin === originalRequestURL.origin) {
+          console.warn("worker:", {
+            clientURL: clientURL.href,
+            originalClientURL: originalClientURL.href,
+            originalRequestURL: originalRequestURL.href
+          });
+
+          return sendOriginalRequest();
+        }
+
+        // we rebuild the whole path but using our patch domain
+        const requestURL = new URL(
+          originalRequestURL.pathname + originalRequestURL.search + originalRequestURL.hash,
+          originalClientURL.origin // our patch domain
         );
-        patched_url.searchParams.set(
-          SURFONXY_URI_ATTRIBUTES.URL,
-          btoa(patched_origin)
-        );
-        patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
 
-        const patched_request_body = await original_request.clone().text();
+        // we set the real URL as a base64 encoded value
+        requestURL.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(originalRequestURL.origin));
+        requestURL.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1"); // Always "1" since SW is installed !
 
-        const patched_request = new Request(patched_url, {
-          body:
-            original_request.method !== "GET" &&
-            original_request.method !== "HEAD" &&
-            patched_request_body
-              ? patched_request_body
-              : void 0,
-          method: original_request.method,
-          headers: original_request.headers,
-          redirect: original_request.redirect,
-          // mode: "cors",
-          // cache: "default",
-          // credentials: "include"
+        // we get this as text to be able to send it back
+        // note: see if using .text() affects anything
+        const requestBodyAsText = await originalRequest.text();
+
+        // rebuild our request object
+        const request = new Request(requestURL, {
+          body: (
+            originalRequest.method !== "GET" &&
+            originalRequest.method !== "HEAD" &&
+            requestBodyAsText
+          ) ? requestBodyAsText : void 0,
+          method: originalRequest.method,
+          headers: originalRequest.headers,
+          redirect: originalRequest.redirect
         });
 
-        return fetch(patched_request);
+        return fetch(request);
       })()
     );
   }
   catch (error) {
-    console.error("[service-worker]:", error, original_request);
+    console.error("worker:", error, originalRequest);
   }
 });
