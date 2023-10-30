@@ -60,23 +60,23 @@ class SurfonxyLocation {
   }
 
   get host(): string {
-    return this.proxyUrl.host;
+    return new URL(this.href).host;
   }
   set host(value: string) {
-    this.proxyUrl.host = value;
-    this.assign(this.proxyUrl);
+    new URL(this.href).host = value;
+    this.assign(this.href);
   }
 
   get hostname() {
-    return this.proxyUrl.hostname;
+    return new URL(this.href).hostname;
   }
   set hostname(value: string) {
-    this.proxyUrl.hostname = value;
-    this.assign(this.proxyUrl);
+    new URL(this.href).hostname = value;
+    this.assign(this.href);
   }
 
   get href(): string {
-    return this.proxyUrl.href;
+    return BASE_URL.href;
   }
   set href(value: string) {
     this.assign(value);
@@ -90,45 +90,47 @@ class SurfonxyLocation {
   }
 
   get port(): string {
-    return this.proxyUrl.port;
+    return new URL(this.href).port;
   }
   set port(value: string) {
-    this.proxyUrl.port = value;
-    this.assign(this.proxyUrl);
+    new URL(this.href).port = value;
+    this.assign(this.href);
   }
 
   get protocol(): string {
-    return this.proxyUrl.protocol;
+    return new URL(this.href).protocol;
   }
   set protocol(value: string) {
-    this.proxyUrl.protocol = value.replace(/:$/g, "");
-    this.assign(this.proxyUrl);
+    const url = new URL(this.href);
+    url.protocol = value.replace(/:$/g, "");
+    this.assign(url);
   }
 
   get search(): string {
-    return this.proxyUrl.search;
+    return new URL(this.href).search;
   }
   set search(value: string) {
-    this.proxyUrl.search = value;
-    this.assign(this.proxyUrl);
+    const url = new URL(this.href);
+    url.search = value;
+    this.assign(url);
   }
 
   get username(): string {
-    return this.proxyUrl.username;
+    return new URL(this.href).username;
   }
   set username(value: string) {
     // No operation needed.
   }
 
   get password(): string {
-    return this.proxyUrl.password;
+    return new URL(this.href).password;
   }
   set password(value: string) {
     // No operation needed.
   }
 
   get origin() {
-    return this.proxyUrl.origin;
+    return new URL(this.href).origin;
   }
 
   assign(url: string | URL): void {
