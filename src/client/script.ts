@@ -296,60 +296,70 @@ HTMLFormElement.prototype.submit = function () {
   };
 })();
 
-const prototypesToFix = {
-  HTMLAnchorElement: ["href"],
-  HTMLAreaElement: ["href"],
-  HTMLBaseElement: ["href"],
-  HTMLEmbedElement: ["src"],
-  HTMLFormElement: ["action"],
-  HTMLFrameElement: ["src"],
-  HTMLIFrameElement: ["src"],
-  HTMLImageElement: ["src", "srcset"],
-  HTMLInputElement: ["src"],
-  HTMLLinkElement: ["href"],
-  HTMLMediaElement: ["src"],
-  HTMLModElement: ["cite"],
-  HTMLObjectElement: ["data"],
-  HTMLQuoteElement: ["cite"],
-  HTMLScriptElement: ["src"],
-  HTMLSourceElement: ["srcset"],
-  HTMLTrackElement: ["src"],
-  Request: ["url"],
-} as const;
+/**
+ * Patches the following prototypes :
+ * - `Document.prototype.documentURI` available on `document.documentURI` ;
+ * - `Document.prototype.URL` available on `document.URL` ;
+ * And the following for the *old alias of `Document`*, see <https://developer.mozilla.org/en-US/docs/Web/API/HTMLDocument>.
+ * - `HTMLDocument.prototype.documentURI` ;
+ * - `HTMLDocument.prototype.URL`
+ */
+(function patchDocumentURLs() {
+  const protos = [
+    window.Document.prototype,
+    window.HTMLDocument.prototype
+  ];
 
-for (const classElementRaw in prototypesToFix) {
-  const classElement = classElementRaw as keyof typeof prototypesToFix;
+  for (const proto of protos) {
+    Object.defineProperty(proto, "URL", {
+      get () {
+        return BASE_URL.href;
+      },
+    
+      // No-op.
+      set () {},
+  
+      configurable: true,
+      enumerable: true
+    });
 
-  for (const attr of prototypesToFix[classElement]) {
-    if (!window[classElement]) continue;
+    Object.defineProperty(proto, "documentURI", {
+      get () {
+        return BASE_URL.href;
+      },
+    
+      // No-op.
+      set () {},
+  
+      configurable: true,
+      enumerable: true
+    });
+  }
+})();
 
-    const descriptor = Object.getOwnPropertyDescriptor(
-      window[classElement].prototype,
-      attr
-    ) as PropertyDescriptor;
-    const originalGet = descriptor.get;
-    const originalSet = descriptor.set;
+/**
+ * Patches the following prototypes :
+ * - `Document.prototype.domain` available on `document.domain` ;
+ * - `HTMLDocument.prototype.domain` for old alias ;
+ */
+(function patchDomainFromDocument() {
+  const protos = [
+    window.Document.prototype,
+    window.HTMLDocument.prototype
+  ];
 
-    descriptor.set = function (url) {
-      const new_url = transformUrl(url);
-
-      // TODO: remove when done debugging.
-      console.info(`[set][${classElement}.${attr}.set]: ${url} -> ${new_url}`);
-
-      return originalSet?.call(this, new_url);
-    };
-
-    descriptor.get = function () {
-      const url = originalGet?.call(this);
-      const new_url = transformUrl(url);
-
-      // TODO: remove when done debugging.
-      console.info(`[get][${classElement}.${attr}.get]: ${url} -> ${new_url}`);
-
-      return new_url;
-    };
-
-    Object.defineProperty(window[classElement].prototype, attr, descriptor);
+  for (const proto of protos) {
+    Object.defineProperty(proto, "domain", {
+      get () {
+        return BASE_URL.hostname;
+      },
+    
+      // No-op.
+      set () {},
+  
+      configurable: true,
+      enumerable: true
+    });
   }
 })();
 
