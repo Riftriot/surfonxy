@@ -288,7 +288,6 @@ HTMLFormElement.prototype.submit = function () {
     patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url.origin));
     patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(SF_LOCATION.origin));
 
-    console.info(`[window.WebSocket] ${url.href} -> ${patched_url.href}`);
     arguments[0] = patched_url;
 
     // @ts-expect-error
