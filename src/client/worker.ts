@@ -33,26 +33,16 @@ self.addEventListener("fetch", (event) => {
   try {
     event.respondWith(
       (async () => {
-        /** URL in the fetch. */
-        const originalRequestURL = new URL(originalRequest.url);
+        let originalRequestURL = new URL(originalRequest.url);
 
         // Don't care about extensions, and anything that is not a *real* request.
         if (!originalRequestURL.protocol.startsWith("http")) {
           return sendOriginalRequest();
         }
 
-        // We ignore already patched requests.
-        if (originalRequestURL.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL) === "1") {
-          // Only ignore if the origin was patched as well.
-          // NOTE: Why we had this again ??
-          // if (originalRequestURL.origin === originalClientURL.origin)
-          return sendOriginalRequest();
-        }
-
         const client = await self.clients.get(event.clientId);
         if (!client?.url) return sendOriginalRequest();
 
-        // previous_client_url = client?.url ?? (previous_client_url as string);
         const originalClientURL = new URL(client.url);
 
         // Get the real origin.
@@ -69,6 +59,7 @@ self.addEventListener("fetch", (event) => {
             atob(decodeURIComponent(clientURL))
           );
 
+          // we remove params only needed for surfonxy.
           clientURL.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
           clientURL.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
         }
@@ -77,16 +68,39 @@ self.addEventListener("fetch", (event) => {
           return sendOriginalRequest();
         }
 
-        // TODO: handle requests that are from our domains
-        // note: can maybe a pain to fix, depending on the clientURL
-        if (originalClientURL.origin === originalRequestURL.origin) {
-          console.warn("worker:", {
-            clientURL: clientURL.href,
-            originalClientURL: originalClientURL.href,
-            originalRequestURL: originalRequestURL.href
-          });
+        // We ignore already patched requests...
+        if (originalRequestURL.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
+          // TODO: re-patch the URL using the origin from originalRequestURL ?
+          if (originalRequestURL.origin !== originalClientURL.origin) {
+            console.warn("worker: already patched request, but not from our domain ?", {
+              clientURL: clientURL.href,
+              originalClientURL: originalClientURL.href,
+              originalRequestURL: originalRequestURL.href
+            });
+          }
 
+          // already patched request, we send as it is.
           return sendOriginalRequest();
+        }
+        
+        /**
+         * handle requests that are from our domains
+         * it means that it's probably some relative URL that we need to patch.
+         * 
+         * example with the following variables:
+         * originalRequestURL = "https://surfonxy.dev/images/something.svg"
+         * clientURL = "https://example.com/"
+         * 
+         * we need to transform `originalRequestURL` to:
+         * "https://example.com/images/something.svg"
+         */
+        if (originalClientURL.origin === originalRequestURL.origin) {
+          // we rebuild `originalRequestURL` since `origin` is a read-only property.
+          originalRequestURL = new URL(
+            originalRequestURL.pathname + originalRequestURL.search + originalRequestURL.hash,
+            // we use the client's origin because it's a relative URL (from this URL).
+            clientURL.origin
+          );
         }
 
         // we rebuild the whole path but using our patch domain
@@ -112,7 +126,9 @@ self.addEventListener("fetch", (event) => {
           ) ? requestBodyAsText : void 0,
           method: originalRequest.method,
           headers: originalRequest.headers,
-          redirect: originalRequest.redirect
+          redirect: originalRequest.redirect,
+          mode: originalRequest.mode,
+          credentials: originalRequest.credentials
         });
 
         return fetch(request);
