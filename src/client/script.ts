@@ -545,19 +545,74 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
   Object.defineProperty(prototype, "src", descriptor);
 })();
 
-(function patchPostMessage () {
-  const originalPostMessage = window.postMessage;
-  window.postMessage = function () {
-    if (typeof arguments[1] === "string") {
-      // `targetOrigin` can be `"*"` according to MDN.
-      if (arguments[1] !== "*") {
-        arguments[1] = "*";
-      }
+(function patchMessageEvents() {
+  // @ts-expect-error
+  window.__sf_preparePostMessageData = (data: unknown) => {
+    console.log("preparePostMessageData:", data);
+    return data;
+  };
+
+  // @ts-expect-error
+  window.__sf_preparePostMessageOrigin = function (origin: unknown) {
+    console.log(origin);
+    if (typeof origin === "string") {
+      return "*";
     }
 
-    // @ts-expect-error
-    originalPostMessage.apply(this, arguments);
+    return origin;
   };
+
+  if ("MessageEvent" in window) {
+    const messageEventProto = window.MessageEvent.prototype;
+    const messageEventDescriptor = Object.getOwnPropertyDescriptor(messageEventProto, "origin") as PropertyDescriptor;
+
+    Object.defineProperty(messageEventProto, "origin", {
+      get () {
+        // @ts-expect-error
+        const origin = messageEventDescriptor.get?.apply(this);
+        return typeof origin === "string" ? BASE_URL.origin : origin;
+      },
+  
+      set () {
+        const origin = arguments[0];
+        if (origin) {
+          arguments[0] = typeof origin === "string" ? BASE_URL.origin : origin;
+        }
+
+        // @ts-expect-error
+        messageEventDescriptor.set?.apply(this, arguments);
+      },
+
+      configurable: true,
+      enumerable: true
+    });
+  }
+
+  if ("ExtendableMessageEvent" in window) {
+    const extendableMessageEventProto = window.ExtendableMessageEvent.prototype;
+    const extendableMessageEventDescriptor = Object.getOwnPropertyDescriptor(extendableMessageEventProto, "origin") as PropertyDescriptor;
+
+    Object.defineProperty(extendableMessageEventProto, "origin", {
+      get () {
+        // @ts-expect-error
+        const origin = extendableMessageEventDescriptor.get?.apply(this);
+        return typeof origin === "string" ? BASE_URL.origin : origin;
+      },
+  
+      set () {
+        const origin = arguments[0];
+        if (origin) {
+          arguments[0] = typeof origin === "string" ? BASE_URL.origin : origin;
+        }
+
+        // @ts-expect-error
+        extendableMessageEventDescriptor.set?.apply(this, arguments);
+      },
+
+      configurable: true,
+      enumerable: true
+    });
+  }
 })();
 
 (function patchMessageEvent () {
