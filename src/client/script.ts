@@ -424,6 +424,28 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 };
 
 /**
+ * Patch the URL from `getRegistration` method
+ * of `ServiceWorkerContainer` prototype.
+ */
+(function rewriteServiceWorkerGetRegistration() {
+  const originalGetRegistration = window.ServiceWorkerContainer.prototype.getRegistration;
+  
+  window.ServiceWorkerContainer.prototype.getRegistration = function () {
+    const original_url = arguments[0];
+    const patched_url = __sf_simple_rewrite_url(original_url);
+
+    // but we don't need the parameters
+    // so let's just remove them.
+    patched_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.URL);
+    patched_url.searchParams.delete(SURFONXY_URI_ATTRIBUTES.READY);
+
+    arguments[0] = patched_url.href;
+    // @ts-expect-error
+    return originalGetRegistration.apply(this, arguments);
+  };
+})();
+
+/**
  * We patch the `History` prototype.
  * Unlike `Location`, it is not read-only,
  * so we can patch the functions there directly.
