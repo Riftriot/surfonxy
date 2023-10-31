@@ -13,6 +13,45 @@ const isInKeywords = (value: string) => keywords.includes(value);
  * @returns Tweaked JavaScript code that should be used instead.
  */
 export const tweakJS = (code: string, isFromSrcDoc = false): string => {
+  const postMessageRegex = /postMessage\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = postMessageRegex.exec(code)) !== null) {
+    const start_index = match.index + match[0].length;
+    let index = start_index;
+
+    let current_char = code[index];
+
+    let parenthesis_count = 1; // We start with 1 because we already have one parenthesis.
+    const parameters = [""];
+    let parameters_index = 0;
+
+    const parenthesis_open = ["(", "[", "{"];
+    const parenthesis_close = [")", "]", "}"];
+
+    while (parenthesis_count > 0) {
+      if (parenthesis_open.includes(current_char)) parenthesis_count++;
+      else if (parenthesis_close.includes(current_char)) parenthesis_count--;
+      else if (current_char === "," && parenthesis_count === 1) {
+        parameters[++parameters_index] = "";
+        current_char = code[++index];
+      }
+
+      parameters[parameters_index] += current_char;
+      current_char = code[++index];
+    }
+
+    const end_index = index;
+
+    parameters[0] = `window.__sf_preparePostMessageData(${parameters[0]})`;
+    if (typeof parameters[1] === "string") {
+      parameters[1] = `window.__sf_preparePostMessageOrigin(${parameters[1]})`;
+    }
+
+    // we replace in the code.
+    code.substring(start_index, end_index);
+    code = code.substring(0, start_index) + parameters.join(",") + code.substring(end_index);
+  }
+
   try {
     // force to use bulk for now
     throw null;
