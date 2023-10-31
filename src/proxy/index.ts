@@ -70,6 +70,10 @@ export const createProxiedResponse = async (
   }
 ): Promise<Response> => {
   const request_proxy_url = getRequestURL(request);
+
+  // When the request is for the service worker.
+  // Very special and only case where we send something else
+  // depending on the pathname.
   if (request_proxy_url.pathname === SURFONXY_SERVICE_WORKER_PATH) {
     return serviceWorker();
   }
@@ -111,44 +115,40 @@ export const createProxiedResponse = async (
   // We get the cookies from our session.
   const cached_cookies = session.getCookiesAsStringFor(request_url.hostname, request_url.pathname);
   const user_cookies = request_headers.get("cookie") || "";
-  // We merge the cookies from the client and the ones from the session. The client's cookies have higher priority.
+  // We merge the cookies from the client and the ones from the session.
+  // The client's cookies have higher priority.
   const cookies = user_cookies + (cached_cookies ? `; ${cached_cookies}` : "");
   request_headers.set("cookie", cookies);
 
   // We make sure that the host is the same as the one we're proxying.
-  request_headers.set("Host", request_url.host);
+  request_headers.delete("host");
 
-  // TODO: proxy
+  // NOTE: This doesn't impact anything... yet.
   request_headers.delete("origin");
   request_headers.delete("referer");
 
   // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
-  request_headers.delete("accept-encoding");
+  request_headers.delete("Accept-Encoding");
 
   try {
     session.addCookies(request_headers.get("cookie") ?? "");
     const response = await fetch(request_url.href, {
       method: request.method,
       headers: request_headers,
-      body: request.body,
+      body: await request.text(),
       redirect: "manual"
     });
 
-    let cookies = response.headers.get("set-cookie") ?? "";
-    // replace domain in cookies with our domain
-    cookies = cookies.replace(/domain=[^;]+/g, `domain=${request_url.hostname}`);
+    const cookies = response.headers.get("set-cookie") ?? "";
     session.addCookies(cookies);
-    const response_headers = registerCookies(response, session);
-    response_headers.delete("content-encoding");
-    // don't send cookies to user if they are http-only 
-    if (cookies.toLowerCase().includes("httponly")) {
-      response_headers.delete("set-cookie");
-    }
 
-    /** helper to return a response using status from actual response and tweaked headers. */
-    const giveNewResponse = (
-      body: ReadableStream<Uint8Array> | string | null
-    ) => (
+    const response_headers = registerCookies(response, session);
+    
+    // TODO: We don't handle properties such as `gzip, deflate, br`, yet.
+    response_headers.delete("content-encoding");
+
+    /** Helper to return a response using status from actual response and tweaked headers. */
+    const giveNewResponse = (body: ReadableStream<Uint8Array> | string | null): Response => (
       new Response(body, {
         headers: response_headers,
 
@@ -160,23 +160,25 @@ export const createProxiedResponse = async (
 
     // When there's a redirection
     if (response.status >= 300 && response.status <= 399) {
-      const redirect_to = response_headers.get("location");
+      let redirect_to: URL | string | null = response_headers.get("location");
+      
       if (redirect_to) {
-        const redirection_url = new URL(redirect_to);
-        const new_redirection_url = new URL(redirection_url.pathname + redirection_url.search, request_proxy_url.origin);
+        redirect_to = new URL(redirect_to);
 
-        new_redirection_url.searchParams.set(
-          SURFONXY_URI_ATTRIBUTES.URL,
-          btoa(redirection_url.origin)
-        );
-        new_redirection_url.searchParams.set(
-          SURFONXY_URI_ATTRIBUTES.READY,
-          "1"
+        const new_redirection_url = new URL(
+          redirect_to.pathname + redirect_to.search + redirect_to.hash,
+          request_proxy_url.origin
         );
 
+        // We add the origin to the redirection URL.
+        new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(redirect_to.origin));
+        
+        // After the redirection, we assume the service worker has
+        // already been set up.
+        new_redirection_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
+
+        // Tweak the destination of the redirect in sent headers.
         response_headers.set("location", new_redirection_url.href);
-        // TODO: see if the :80 issue on redirection comes from this
-        console.info("Made a redirection to ->", new_redirection_url.href);
         return giveNewResponse(null);
       }
     }
