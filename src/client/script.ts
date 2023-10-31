@@ -351,7 +351,32 @@ for (const classElementRaw in prototypesToFix) {
 
     Object.defineProperty(window[classElement].prototype, attr, descriptor);
   }
-}
+})();
+
+/**
+ * Remove `integrity` property from
+ * `<script>` and `<link>` elements.
+ */
+(function removeIntegrityAttributes() {
+  const protos = [
+    window.HTMLScriptElement.prototype,
+    window.HTMLLinkElement.prototype
+  ];
+  
+  for (const proto of protos) {
+    Object.defineProperty(proto, "integrity", {
+      /** `null` to remove the value. */
+      get () {
+        return null;
+      },
+    
+      // No-op.
+      set () {},
+  
+      configurable: true,
+      enumerable: true
+    });
+  }
 })();
 
 /**
