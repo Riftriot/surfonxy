@@ -352,6 +352,17 @@ for (const classElementRaw in prototypesToFix) {
     Object.defineProperty(window[classElement].prototype, attr, descriptor);
   }
 }
+})();
+
+/**
+ * Remove this function since not
+ * available inside the proxy.
+ */
+(function removeNavigatorProtocolHandler() {
+  window.navigator.registerProtocolHandler = function () {
+    console.error("No protocol handlers can be registered.");
+  };
+})();
 
 // (function patchMetaHttpEquivRefresh () {
 //   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLMetaElement.prototype, "content") as PropertyDescriptor;
