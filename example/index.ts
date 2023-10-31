@@ -29,7 +29,10 @@ proxy.listen({
   hostname: "surfonxy.dev"
 }, (server) => {
   console.info(`[proxy]: Running on https://${server.hostname}`);
-});
+})
+  .listen(80, (server) => {
+    console.info(`[proxy]: Running on http://${server.hostname}`);
+  });
 
 const tests = new Elysia();
 tests.get("/", () => Bun.file("./public/index.html"));
