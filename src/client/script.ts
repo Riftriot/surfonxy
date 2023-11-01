@@ -102,6 +102,14 @@ document.__sf_location = window.__sf_location;
 })();
 
 (function patchSubmitForm() {
+  const patchActionAttribute = (element: HTMLFormElement) => {
+    const original_action = element.getAttribute("action");
+    if (!original_action) return;
+
+    const patched_action = simpleRewriteURL(original_action).href;
+    element.setAttribute("action", patched_action);
+  };
+
   const addInputsToForm = (element: HTMLElement) => {
     const url_parameter = document.createElement("input");
     url_parameter.setAttribute("hidden", "true");
