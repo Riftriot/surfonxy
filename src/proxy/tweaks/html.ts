@@ -1,4 +1,3 @@
-import type { ProxyOptions } from "../types";
 import * as cheerio from "cheerio";
 
 import {
@@ -14,7 +13,6 @@ export const tweakHTML = async (
   content: string,
   request_url: URL,
   proxied_url: URL,
-  options: ProxyOptions,
   /**
    * If the content is from a `srcdoc` attribute, we don't want to tweak the
    * location object, because of iframe.
@@ -36,6 +34,8 @@ export const tweakHTML = async (
   }
 
   const transformUrl = (url: string) => {
+    return url;
+
     if (url.startsWith("data:")) return url;
     if (url[0] === "#") return url;
 
@@ -169,28 +169,21 @@ export const tweakHTML = async (
   });
 
   for (const iframe of iframes) {
-    iframe.attr("srcdoc", await tweakHTML(iframe.attr("srcdoc") as string, request_url, proxied_url, options, true));
+    iframe.attr("srcdoc", await tweakHTML(iframe.attr("srcdoc") as string, request_url, proxied_url, true));
   }
   
   // Remove every <base> elements from DOM.
-  // $("head base").each(function () {
-  //   $(this).remove();
-  // });
+  $("head>base").each(function () {
+    $(this).remove();
+  });
   
   // Add `<base>`, <https://developer.mozilla.org/docs/Web/HTML/Element/base>
   // > Rewrites every relative URLs in the DOM.
   // > There can be only one `<base>` element.
-  const base_element_href = $("head>base").prop("href");
-  if (!base_element_href) {
-    $("head").prepend(`<base href="${proxied_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1" />`);
-  }
+  $("head").prepend(`<base href="${proxied_url.href}" ${SURFONXY_GENERATED_ATTRIBUTE}="1">`);
 
   // Add our client script at the beginning of the `head` of the document.
-  $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">
-    ${scriptContentCache
-    .replace("<<BASE_URL>>", proxied_url.href)
-    .replace("<<WEBSOCKET_PROXY_PATH>>", options.WEBSOCKET_PROXY_PATH)}
-  </script>`);
+  $("head").prepend(`<script ${SURFONXY_GENERATED_ATTRIBUTE}="1">${scriptContentCache}</script>`);
 
   return $.html();
 };

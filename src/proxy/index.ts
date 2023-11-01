@@ -1,5 +1,4 @@
 import type Session from "~/session";
-import type { ProxyOptions } from "~/proxy/types";
 
 import {
   SURFONXY_SERVICE_WORKER_PATH,
@@ -64,10 +63,7 @@ const registerCookies = (response: Response, session: Session) => {
 
 export const createProxiedResponse = async (
   request: Request,
-  session: Session,
-  options: ProxyOptions = {
-    WEBSOCKET_PROXY_PATH: "/__surfonxy_websocket__",
-  }
+  session: Session
 ): Promise<Response> => {
   const request_proxy_url = getRequestURL(request);
 
@@ -208,8 +204,7 @@ export const createProxiedResponse = async (
         content = await tweakHTML(
           content,
           request_proxy_url,
-          request_url,
-          options
+          request_url
         );
 
         return giveNewResponse(content);

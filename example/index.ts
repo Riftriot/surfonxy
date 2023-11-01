@@ -5,18 +5,16 @@ import {
   createProxiedResponse,
   createSession,
   
-  makeProxyWebSocketHandler, type ProxyWebSocketElysiaHandler
+  webSocketProxyHandler, type WebSocketElysiaProxyHandler,
+  SURFONXY_WEBSOCKET_PATH_PREFIX
 } from "../src";
 
-const WEBSOCKET_BASE_PATH = "/__surfonxy_websocket__";
 const CONSTANT_SESSION = createSession();
 
 const proxy = new Elysia();
-proxy.ws(WEBSOCKET_BASE_PATH + "/*", makeProxyWebSocketHandler(WEBSOCKET_BASE_PATH) as ProxyWebSocketElysiaHandler);
+proxy.ws(SURFONXY_WEBSOCKET_PATH_PREFIX + "/*", webSocketProxyHandler as WebSocketElysiaProxyHandler);
 proxy.all("*", ({ request }) => {
-  return createProxiedResponse(request, CONSTANT_SESSION, {
-    WEBSOCKET_PROXY_PATH: WEBSOCKET_BASE_PATH
-  });
+  return createProxiedResponse(request, CONSTANT_SESSION);
 });
 
 proxy.listen({

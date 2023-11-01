@@ -1,7 +1,7 @@
 /// <reference lib="WebWorker" />
 declare const self: ServiceWorkerGlobalScope;
 
-import { SURFONXY_URI_ATTRIBUTES } from "../utils/constants";
+import { SURFONXY_URI_ATTRIBUTES } from "~/utils/constants";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
