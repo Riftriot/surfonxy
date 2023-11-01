@@ -17,8 +17,9 @@ const PROXY_SESSION_ID = localStorage.getItem(
 ) as string;
 
 (function checkInitialURIParameters() {
-  // we can safely ignore about:* URLs.
-  if (window.location.href.startsWith("about:")) return;
+  // Can be `null`.
+  // We don't use the "===" here because we want to catch `"null"` as well.
+  if (window.location.origin == "null") return;
 
   const url = new URL(window.location.href);
   if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY)) {
@@ -44,12 +45,6 @@ window.addEventListener("load", () => {
 });
 
 class SurfonxyLocation {
-  private proxyUrl: URL;
-
-  constructor() {
-    this.proxyUrl = BASE_URL;
-  }
-
   get hash(): string {
     return window.location.hash;
   }
