@@ -155,6 +155,11 @@ export const tweakHTML = async (
     $(this).attr("content", [delay, url].join(";"));
   });
 
+  // Remove every `meta[http-equiv="Content-Security-Policy"]` from DOM.
+  $("meta[http-equiv=\"Content-Security-Policy\"]").each(function () {
+    $(this).remove();
+  });
+
   const iframes: Array<cheerio.Cheerio<cheerio.Element>> = [];
   $("iframe[srcdoc]").each(function () {
     const current_srcdoc = $(this).attr("srcdoc");
