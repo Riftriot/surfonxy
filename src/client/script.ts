@@ -440,17 +440,25 @@ HTMLFormElement.prototype.submit = function () {
 //   }
 // })();
 
+/**
+ * Very simple URL rewriting.
+ * Should work for most cases.
+ */
 const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
-  // if the very first character is a slash,
-  // we rebuild it as an absolute path.
-  if (original_url.toString().trim()[0] === "/") {
-    original_url = new URL(
-      original_url,
-      window.location.origin
-    );
-
-    // in case it was removed during the rebuild
-    original_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));
+  // when the URL is a string...
+  if (typeof original_url === "string") {
+    // if the URL passes, it was something like...
+    // `https://example.com/...`
+    try {
+      original_url = new URL(original_url);
+    }
+    // the url is a relative OR absolute path so something like...
+    // `/path/file` or `./path/file`, ...
+    catch {
+      // so we assign the origin to the URL.
+      // so it becomes `https://example.com/path/file`.
+      original_url = new URL(original_url, BASE_URL.href);
+    }
   }
 
   let patched_url = new URL(original_url);
