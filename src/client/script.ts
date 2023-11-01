@@ -567,63 +567,102 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
   }
 })();
 
+/**
+ * Patch `HTMLIFrameElement.prototype.src` to proxy the value
+ * and `HTMLIFrameElement.prototype.setAttribute` to intercept the value set to `src`.
+ */
 (function patchIframePrototype() {
   const prototype = window.HTMLIFrameElement.prototype;
   const descriptor = Object.getOwnPropertyDescriptor(prototype, "src") as PropertyDescriptor;
   
-  const descriptor_set = descriptor.set;
-  const descriptor_get = descriptor.get;
-
-  descriptor.set = function (original_url: string) {
-    const patched_url = __sf_simple_rewrite_url(original_url);
-    return descriptor_set?.call(this, patched_url.href);
-  };
-
-  descriptor.get = function () {
-    const original_url = descriptor_get?.call(this);
-    console.log("iframe.get:", original_url);
-    return original_url;
-  };
+  // We patch the `HTMLIFrameElement.prototype.src`.
+  const src_descriptor = Object.getOwnPropertyDescriptor(prototype, "src") as PropertyDescriptor;
   
-  Object.defineProperty(prototype, "src", descriptor);
+  const src_descriptor_set = src_descriptor.set;
+  const src_descriptor_get = src_descriptor.get;
+
+  Object.defineProperty(prototype, "src", {
+    get () {
+      return src_descriptor_get?.call(this);
+    },
+
+    set (original_url: string) {
+      const patched_url = __sf_simple_rewrite_url(original_url);
+      src_descriptor_set?.call(this, patched_url.href);
+    },
+
+    configurable: true,
+    enumerable: true
+  });
+  
+  // We patch `HTMLIFrameElement.prototype.setAttribute`.
+  const originalIframeSetAttribute = prototype.setAttribute;
+
+  window.HTMLIFrameElement.prototype.setAttribute = function () {
+    const attr_name = arguments[0];
+    const original_url = arguments[1];
+
+    if (attr_name === "src" && original_url) {
+      arguments[1] = __sf_simple_rewrite_url(original_url).href;
+    }
+
+    // @ts-expect-error
+    originalIframeSetAttribute.apply(this, arguments);
+  };
 })();
 
 (function patchMessageEvents() {
   // @ts-expect-error
   window.__sf_preparePostMessageData = (data: unknown) => {
-    console.log("preparePostMessageData:", data);
+    // Mostly a debugging function.
+    // Insert anything here to debug.
+
+    console.log("postMessage:", data);
     return data;
   };
 
   // @ts-expect-error
   window.__sf_preparePostMessageOrigin = function (origin: unknown) {
-    console.log(origin);
-    if (typeof origin === "string") {
-      return "*";
+    if ("Window" in window) {
+      if (typeof origin === "string" || origin instanceof String) {
+        return "*";
+      }
     }
-
+    
     return origin;
   };
 
   if ("MessageEvent" in window) {
     const messageEventProto = window.MessageEvent.prototype;
-    const messageEventDescriptor = Object.getOwnPropertyDescriptor(messageEventProto, "origin") as PropertyDescriptor;
+    const messageEventOriginDescriptor = Object.getOwnPropertyDescriptor(messageEventProto, "origin") as PropertyDescriptor;
 
     Object.defineProperty(messageEventProto, "origin", {
       get () {
         // @ts-expect-error
-        const origin = messageEventDescriptor.get?.apply(this);
-        return typeof origin === "string" ? BASE_URL.origin : origin;
+        let origin = messageEventOriginDescriptor.get?.apply(this);
+        
+        if (typeof origin === "string") {
+          // @ts-expect-error
+          origin = window.__sf_location.origin;
+        
+          // If there's a payload...
+          if ("source" in this) {
+            return this.source.__sf_location.origin;
+          }
+        }
+
+        return origin;
       },
   
       set () {
         const origin = arguments[0];
         if (origin) {
-          arguments[0] = typeof origin === "string" ? BASE_URL.origin : origin;
+          // @ts-expect-error
+          arguments[0] = typeof origin === "string" ? window.__sf_location.origin : origin;
         }
 
         // @ts-expect-error
-        messageEventDescriptor.set?.apply(this, arguments);
+        messageEventOriginDescriptor.set?.apply(this, arguments);
       },
 
       configurable: true,
@@ -638,14 +677,26 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
     Object.defineProperty(extendableMessageEventProto, "origin", {
       get () {
         // @ts-expect-error
-        const origin = extendableMessageEventDescriptor.get?.apply(this);
-        return typeof origin === "string" ? BASE_URL.origin : origin;
+        let origin = extendableMessageEventDescriptor.get?.apply(this);
+        
+        if (typeof origin === "string") {
+          // @ts-expect-error
+          origin = window.__sf_location.origin;
+        
+          // If there's a payload...
+          if ("source" in this) {
+            return this.source.__sf_location.origin;
+          }
+        }
+
+        return origin;
       },
   
       set () {
         const origin = arguments[0];
         if (origin) {
-          arguments[0] = typeof origin === "string" ? BASE_URL.origin : origin;
+          // @ts-expect-error
+          arguments[0] = typeof origin === "string" ? window.__sf_location.origin : origin;
         }
 
         // @ts-expect-error
