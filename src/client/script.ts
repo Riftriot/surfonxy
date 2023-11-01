@@ -4,30 +4,29 @@
 import {
   SURFONXY_URI_ATTRIBUTES,
   SURFONXY_LOCALSTORAGE_SESSION_ID_KEY,
+  SURFONXY_WEBSOCKET_PATH_PREFIX,
   createSurfonxyServiceWorkerPath,
-} from "../utils/constants";
+} from "~/utils/constants";
 
-// To be replaced by Bun.
-const WEBSOCKET_PROXY_PATH = "<<WEBSOCKET_PROXY_PATH>>"; // No trailing slash.
-const BASE_URL = new URL("<<BASE_URL>>");
-const PROXY_ORIGIN = window.location.origin;
+import { NATIVE } from "~/client/sandbox/native";
+import { proxiedLocation } from "~/client/utils/location";
+import { simpleRewriteURL } from "~/client/utils/rewrite";
+
 // TODO: Should do a verification for the session ID, if exists or not.
-const PROXY_SESSION_ID = localStorage.getItem(
-  SURFONXY_LOCALSTORAGE_SESSION_ID_KEY
-) as string;
+const PROXY_SESSION_ID = localStorage.getItem(SURFONXY_LOCALSTORAGE_SESSION_ID_KEY) as string;
 
 (function checkInitialURIParameters() {
   // Can be `null`.
   // We don't use the "===" here because we want to catch `"null"` as well.
   if (window.location.origin == "null") return;
 
-  const url = new URL(window.location.href);
+  const url = new NATIVE.URL(window.location.href);
   if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY)) {
     url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
   }
 
   if (!url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL)) {
-    url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(BASE_URL.origin));
+    url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(proxiedLocation.origin));
   }
 
   window.history.replaceState(window.history.state, "", url);
@@ -37,138 +36,16 @@ const PROXY_SESSION_ID = localStorage.getItem(
 window.addEventListener("load", () => {
   // Can be `null`.
   // We don't use the "===" here because we want to catch `"null"` as well.
-  if (PROXY_ORIGIN == "null") return;
+  if (window.location.origin == "null") return;
 
   navigator.serviceWorker.register(
-    new URL(createSurfonxyServiceWorkerPath(PROXY_SESSION_ID), PROXY_ORIGIN)
+    new NATIVE.URL(createSurfonxyServiceWorkerPath(PROXY_SESSION_ID), window.location.origin)
   );
 });
 
-class SurfonxyLocation {
-  get hash(): string {
-    return window.location.hash;
-  }
-  set hash(value: string) {
-    window.location.hash = value;
-  }
-
-  get host(): string {
-    return new URL(this.href).host;
-  }
-  set host(value: string) {
-    new URL(this.href).host = value;
-    this.assign(this.href);
-  }
-
-  get hostname() {
-    return new URL(this.href).hostname;
-  }
-  set hostname(value: string) {
-    new URL(this.href).hostname = value;
-    this.assign(this.href);
-  }
-
-  get href(): string {
-    return BASE_URL.href;
-  }
-  set href(value: string) {
-    this.assign(value);
-  }
-
-  get pathname() {
-    return window.location.pathname;
-  }
-  set pathname(value: string) {
-    window.location.pathname = value;
-  }
-
-  get port(): string {
-    return new URL(this.href).port;
-  }
-  set port(value: string) {
-    new URL(this.href).port = value;
-    this.assign(this.href);
-  }
-
-  get protocol(): string {
-    return new URL(this.href).protocol;
-  }
-  set protocol(value: string) {
-    const url = new URL(this.href);
-    url.protocol = value.replace(/:$/g, "");
-    this.assign(url);
-  }
-
-  get search(): string {
-    return new URL(this.href).search;
-  }
-  set search(value: string) {
-    const url = new URL(this.href);
-    url.search = value;
-    this.assign(url);
-  }
-
-  get username(): string {
-    return new URL(this.href).username;
-  }
-  set username(value: string) {
-    // No operation needed.
-  }
-
-  get password(): string {
-    return new URL(this.href).password;
-  }
-  set password(value: string) {
-    // No operation needed.
-  }
-
-  get origin() {
-    return new URL(this.href).origin;
-  }
-
-  assign(url: string | URL): void {
-    window.location.assign(transformUrl(url));
-  }
-
-  toString(): string {
-    return this.href;
-  }
-
-  toJSON() {
-    const url = new URL(this.href);
-
-    return {
-      ancestorOrigins: {},
-      hash: url.hash,
-      host: url.host,
-      hostname: url.hostname,
-      href: url.href,
-      origin: url.origin,
-      pathname: url.pathname,
-      port: url.port,
-      protocol: url.protocol,
-      search: url.search
-    };
-  }
-
-  /**
-   * @param forceReload - Only supported in Firefox.
-   */
-  reload(forceReload: boolean): void {
-    // @ts-expect-error
-    window.location.reload(forceReload);
-  }
-
-  replace(url: string | URL): void {
-    window.location.replace(transformUrl(url));
-  }
-}
-
-const SF_LOCATION = new SurfonxyLocation();
-
 // @ts-expect-error
 // Add the location proxy to the window.
-window.__sf_location = SF_LOCATION;
+window.__sf_location = proxiedLocation;
 // @ts-expect-error
 // Proxies the window location in the document.
 document.__sf_location = window.__sf_location;
@@ -224,69 +101,61 @@ document.__sf_location = window.__sf_location;
   };
 })();
 
-const sendBeaconOriginal = navigator.sendBeacon;
-navigator.sendBeacon = function () {
-  if (typeof arguments[0] === "string")
-    arguments[0] = transformUrl(arguments[0]);
-
-  // @ts-expect-error
-  return sendBeaconOriginal.apply(this, arguments);
-};
-
-const xmlHttpRequestOpenOriginal = XMLHttpRequest.prototype.open;
-XMLHttpRequest.prototype.open = function () {
-  arguments[1] = transformUrl(arguments[1]);
-
-  // @ts-expect-error
-  xmlHttpRequestOpenOriginal.apply(this, arguments);
-};
-
-const formSubmitOriginal = HTMLFormElement.prototype.submit;
-HTMLFormElement.prototype.submit = function () {
-  const method = this.method.toUpperCase();
-
-  if (method === "GET") {
+(function patchSubmitForm() {
+  const addInputsToForm = (element: HTMLElement) => {
     const url_parameter = document.createElement("input");
     url_parameter.setAttribute("hidden", "true");
     url_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.URL);
-    url_parameter.setAttribute("value", btoa(BASE_URL.origin));
+    url_parameter.setAttribute("value", btoa(proxiedLocation.origin));
 
     const ready_parameter = document.createElement("input");
     ready_parameter.setAttribute("hidden", "true");
     ready_parameter.setAttribute("name", SURFONXY_URI_ATTRIBUTES.READY);
     ready_parameter.setAttribute("value", "1");
 
-    this.appendChild(url_parameter);
-    this.appendChild(ready_parameter);
-  }
+    element.appendChild(url_parameter);
+    element.appendChild(ready_parameter);
+  };
 
-  // @ts-expect-error
-  formSubmitOriginal.apply(this, arguments);
-};
+  const formSubmitOriginal = HTMLFormElement.prototype.submit;
+  HTMLFormElement.prototype.submit = function () {
+    const method = this.method.toUpperCase();
+  
+    if (method === "GET") {
+      addInputsToForm(this);
+    }
+  
+    // @ts-expect-error
+    formSubmitOriginal.apply(this, arguments);
+  };
+
+  window.addEventListener("submit", (event) => {
+    if (!event.target) return;
+    addInputsToForm(event.target as HTMLElement);
+  }, true);
+})();
 
 (function patchWebSockets() {
-  const OriginalWebSocket = window.WebSocket;
-
   // @ts-expect-error
   window.WebSocket = function () {
     let url = arguments[0] as string | URL;
     if (typeof url === "string") {
-      url = new URL(url);
+      url = new NATIVE.URL(url);
     }
 
-    const patched_url = new URL(
-      WEBSOCKET_PROXY_PATH + url.pathname + url.search + url.hash,
+    const patched_url = new NATIVE.URL(
+      SURFONXY_WEBSOCKET_PATH_PREFIX + url.pathname + url.search + url.hash,
       window.location.origin
     );
 
     patched_url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(url.origin));
-    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(SF_LOCATION.origin));
+    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.ORIGIN, btoa(proxiedLocation.origin));
 
     arguments[0] = patched_url;
 
     // @ts-expect-error
-    return new OriginalWebSocket(...arguments);
+    return new NATIVE.WebSocket(...arguments);
   };
 })();
 
@@ -307,7 +176,7 @@ HTMLFormElement.prototype.submit = function () {
   for (const proto of protos) {
     Object.defineProperty(proto, "URL", {
       get () {
-        return BASE_URL.href;
+        return proxiedLocation.href;
       },
     
       // No-op.
@@ -319,7 +188,7 @@ HTMLFormElement.prototype.submit = function () {
 
     Object.defineProperty(proto, "documentURI", {
       get () {
-        return BASE_URL.href;
+        return proxiedLocation.href;
       },
     
       // No-op.
@@ -345,7 +214,7 @@ HTMLFormElement.prototype.submit = function () {
   for (const proto of protos) {
     Object.defineProperty(proto, "domain", {
       get () {
-        return BASE_URL.hostname;
+        return proxiedLocation.hostname;
       },
     
       // No-op.
@@ -393,84 +262,6 @@ HTMLFormElement.prototype.submit = function () {
   };
 })();
 
-// (function patchMetaHttpEquivRefresh () {
-//   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLMetaElement.prototype, "content") as PropertyDescriptor;
-//   const originalGet = descriptor.get;
-//   const originalSet = descriptor.set;
-
-//   descriptor.set = function (url) {
-//     const new_url = transformUrl(url);
-
-//     // TODO: remove when done debugging.
-//     console.info(`[HTMLMetaElement.content.set]: ${url} -> ${new_url}`);
-
-//     return originalSet?.call(this, url);
-//   };
-
-//   descriptor.get = function () {
-//     const url = originalGet?.call(this);
-//     const new_url = transformUrl(url);
-
-//     // TODO: remove when done debugging.
-//     console.info(`[HTMLMetaElement.content.get]: ${url} -> ${new_url}`);
-
-//     return url;
-//   };
-
-//   Object.defineProperty(window.HTMLMetaElement.prototype, "content", descriptor);
-// })();
-
-// (function patchDataHrefAttribute() {
-//   const elements = document.querySelectorAll("[data-href]");
-//   console.log("patching data-href", elements);
-
-//   for (const element of elements) {
-//     const url = element.getAttribute("data-href");
-
-//     if (url) {
-//       const new_url = transformUrl(url);
-//       element.setAttribute("data-href", new_url);
-//       console.log("patched data-href:", new_url);
-//     }
-//   }
-// })();
-
-/**
- * Very simple URL rewriting.
- * Should work for most cases.
- */
-const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
-  // when the URL is a string...
-  if (typeof original_url === "string") {
-    // if the URL passes, it was something like...
-    // `https://example.com/...`
-    try {
-      original_url = new URL(original_url);
-    }
-    // the url is a relative OR absolute path so something like...
-    // `/path/file` or `./path/file`, ...
-    catch {
-      // so we assign the origin to the URL.
-      // so it becomes `https://example.com/path/file`.
-      original_url = new URL(original_url, BASE_URL.href);
-    }
-  }
-
-  let patched_url = new URL(original_url);
-  if (patched_url.origin !== window.location.origin) {
-    patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.URL, btoa(patched_url.origin));
-
-    // we rebuild the url with the base origin.
-    patched_url = new URL(
-      patched_url.pathname + patched_url.search + patched_url.hash,
-      window.location.origin
-    );
-  }
-
-  patched_url.searchParams.set(SURFONXY_URI_ATTRIBUTES.READY, "1");
-  return patched_url;
-};
-
 /**
  * Patch `window.open()`.
  * See <https://developer.mozilla.org/docs/Web/API/Window/open>
@@ -482,7 +273,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
     
     // when the URL is set because it can be blank (about:blank).
     if (original_url) {
-      arguments[0] = __sf_simple_rewrite_url(original_url).href;
+      arguments[0] = simpleRewriteURL(original_url).href;
     }
     
     // @ts-expect-error
@@ -499,7 +290,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
   
   window.ServiceWorkerContainer.prototype.getRegistration = function () {
     const original_url = arguments[0];
-    const patched_url = __sf_simple_rewrite_url(original_url);
+    const patched_url = simpleRewriteURL(original_url);
 
     // but we don't need the parameters
     // so let's just remove them.
@@ -523,7 +314,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 (function patchModuleImport() {
   // @ts-expect-error
   window.__sf_prepareImport = (import_url: string, script_href: string) => {
-    const patched_url = new URL(import_url, script_href).href;
+    const patched_url = new NATIVE.URL(import_url, script_href).href;
     return patched_url;
   };
 })();
@@ -551,11 +342,10 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
       // Third argument - so `arguments[2]` - is `url`, which is optional.
       // > URL must be of the same origin as the current URL; otherwise replaceState throws an exception.
       if (original_url) {
-        const patched_url = __sf_simple_rewrite_url(original_url);
+        const patched_url = simpleRewriteURL(original_url);
         arguments[2] = patched_url.href;
       }
 
-      console.info(`[History.${method}]: ${original_url} -> ${arguments[2]}`);
       // @ts-expect-error
       original.apply(this, arguments);
     };
@@ -568,8 +358,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
  */
 (function patchIframePrototype() {
   const prototype = window.HTMLIFrameElement.prototype;
-  const descriptor = Object.getOwnPropertyDescriptor(prototype, "src") as PropertyDescriptor;
-  
+
   // We patch the `HTMLIFrameElement.prototype.src`.
   const src_descriptor = Object.getOwnPropertyDescriptor(prototype, "src") as PropertyDescriptor;
   
@@ -582,7 +371,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
     },
 
     set (original_url: string) {
-      const patched_url = __sf_simple_rewrite_url(original_url);
+      const patched_url = simpleRewriteURL(original_url);
       src_descriptor_set?.call(this, patched_url.href);
     },
 
@@ -598,7 +387,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
     const original_url = arguments[1];
 
     if (attr_name === "src" && original_url) {
-      arguments[1] = __sf_simple_rewrite_url(original_url).href;
+      arguments[1] = simpleRewriteURL(original_url).href;
     }
 
     // @ts-expect-error
@@ -633,8 +422,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 
     Object.defineProperty(messageEventProto, "origin", {
       get () {
-        // @ts-expect-error
-        let origin = messageEventOriginDescriptor.get?.apply(this);
+        let origin = messageEventOriginDescriptor.get?.apply(this) as unknown;
         
         if (typeof origin === "string") {
           // @ts-expect-error
@@ -671,8 +459,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 
     Object.defineProperty(extendableMessageEventProto, "origin", {
       get () {
-        // @ts-expect-error
-        let origin = extendableMessageEventDescriptor.get?.apply(this);
+        let origin = extendableMessageEventDescriptor.get?.apply(this) as unknown;
         
         if (typeof origin === "string") {
           // @ts-expect-error
@@ -704,21 +491,6 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
   }
 })();
 
-(function patchMessageEvent () {
-  const proto = window.MessageEvent.prototype;
-  const origin_descriptor = Object.getOwnPropertyDescriptor(proto, "origin") as PropertyDescriptor;
-
-  origin_descriptor.get = function () {
-    // TODO
-    console.log("MessageEvent.origin.get", arguments);
-  };
-
-  origin_descriptor.set = function () {
-    // TODO
-    console.log("MessageEvent.origin.set", arguments);
-  };
-})();
-
 (function addProxyToDocumentReferrer () {
   const proto = window.Document.prototype;
   Object.defineProperty(proto, "__sf_referrer", {
@@ -748,7 +520,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
       }
 
       // Parse the URL from the referrer.
-      const original_url = new URL(original_raw_url);
+      const original_url = new NATIVE.URL(original_raw_url);
 
       // Get the origin from the searchParams.
       let origin = original_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.URL);
@@ -767,7 +539,7 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
       }
 
       // Rebuild the original URL.
-      const url = new URL(
+      const url = new NATIVE.URL(
         original_url.pathname + original_url.search + original_url.hash,
         origin
       );
