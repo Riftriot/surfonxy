@@ -191,11 +191,20 @@ export const createProxiedResponse = async (
     // When the content is HTML, we have to tweak the document a little...
     const contentType = response_headers.get("content-type");
     if (contentType?.includes("text/html")) {
+      let content = await response.text();
+
+      if ( // it's not an HTML document
+        !content.includes("</head>")
+        || !content.includes("</body>")  
+        || !content.includes("</html>")  
+        || !content.includes("<html")  
+      ) {
+        return giveNewResponse(content);
+      }
+
       const isServiceWorkerReady = request_proxy_url.searchParams.get(SURFONXY_URI_ATTRIBUTES.READY);
 
       if (isServiceWorkerReady === "1") {
-        let content = await response.text();
-
         content = await tweakHTML(
           content,
           request_proxy_url,
