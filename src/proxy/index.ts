@@ -163,7 +163,12 @@ export const createProxiedResponse = async (
       let redirect_to: URL | string | null = response_headers.get("location");
       
       if (redirect_to) {
-        redirect_to = new URL(redirect_to);
+        redirect_to = new URL(
+          redirect_to,
+          // We pass in the original URL
+          // in case the redirection is relative.
+          request_url.href
+        );
 
         const new_redirection_url = new URL(
           redirect_to.pathname + redirect_to.search + redirect_to.hash,
