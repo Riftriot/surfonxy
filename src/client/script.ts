@@ -477,6 +477,25 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 };
 
 /**
+ * Patch `window.open()`.
+ * See <https://developer.mozilla.org/docs/Web/API/Window/open>
+ */
+(function patchWindowOpen() {
+  const originalWindowOpen = window.open;
+  window.open = function () {
+    const original_url = arguments[0] as string | URL | undefined;
+    
+    // when the URL is set because it can be blank (about:blank).
+    if (original_url) {
+      arguments[0] = __sf_simple_rewrite_url(original_url).href;
+    }
+    
+    // @ts-expect-error
+    return originalWindowOpen.apply(this, arguments); 
+  };
+})();
+
+/**
  * Patch the URL from `getRegistration` method
  * of `ServiceWorkerContainer` prototype.
  */
