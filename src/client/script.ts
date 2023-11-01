@@ -101,6 +101,32 @@ document.__sf_location = window.__sf_location;
   };
 })();
 
+(function patchAnchorElements() {
+  const proto = window.HTMLAnchorElement.prototype;
+  const href_descriptor = Object.getOwnPropertyDescriptor(proto, "href") as PropertyDescriptor;
+
+  const href_descriptor_set = href_descriptor.set;
+  const href_descriptor_get = href_descriptor.get;
+
+  Object.defineProperty(proto, "href", {
+    get () {
+      const url = href_descriptor_get?.call(this) as string | null;
+      if (!url) return url;
+
+      const patched_url = simpleRewriteURL(url);
+      return patched_url.href;
+    },
+
+    set (original_url: string) {
+      const patched_url = simpleRewriteURL(original_url);
+      href_descriptor_set?.call(this, patched_url.href);
+    },
+
+    configurable: true,
+    enumerable: true
+  });
+})();
+
 (function patchSubmitForm() {
   const patchActionAttribute = (element: HTMLFormElement) => {
     const original_action = element.getAttribute("action");
@@ -127,6 +153,7 @@ document.__sf_location = window.__sf_location;
 
   const formSubmitOriginal = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
+    patchActionAttribute(this);
     const method = this.method.toUpperCase();
   
     if (method === "GET") {
@@ -139,7 +166,8 @@ document.__sf_location = window.__sf_location;
 
   window.addEventListener("submit", (event) => {
     if (!event.target) return;
-    addInputsToForm(event.target as HTMLElement);
+    patchActionAttribute(event.target as HTMLFormElement);
+    addInputsToForm(event.target as HTMLFormElement);
   }, true);
 })();
 
