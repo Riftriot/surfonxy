@@ -120,7 +120,7 @@ export const tweakHTML = async (
   $("script")
     .not("[src]")
     .each(function () {
-      const new_script_content = tweakJS($(this).html() as string, isSrcDoc);
+      const new_script_content = tweakJS($(this).html() as string, isSrcDoc, proxied_url.href);
       $(this).html(new_script_content);
     });
 

@@ -491,6 +491,22 @@ const __sf_simple_rewrite_url = (original_url: URL | string): URL => {
 })();
 
 /**
+ * Patch whenever a module script uses `import(...)`.
+ * 
+ * In the AST, we patch the `import` function
+ * by adding `window.__sf_prepareImport` inside the call.
+ * 
+ * So `import(a)` becomes `import(window.__sf_prepareImport(a, "..."))`.
+ */
+(function patchModuleImport() {
+  // @ts-expect-error
+  window.__sf_prepareImport = (import_url: string, script_href: string) => {
+    const patched_url = new URL(import_url, script_href).href;
+    return patched_url;
+  };
+})();
+
+/**
  * We patch the `History` prototype.
  * Unlike `Location`, it is not read-only,
  * so we can patch the functions there directly.

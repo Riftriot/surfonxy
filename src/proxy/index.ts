@@ -212,7 +212,7 @@ export const createProxiedResponse = async (
     // and `text/javascript` - but this one should be obsolete.
     else if (contentType?.match(/(application|text)\/javascript/)) {
       let content = await response.text();
-      content = tweakJS(content);
+      content = tweakJS(content, false, request_url.href);
 
       return giveNewResponse(content);
     }
