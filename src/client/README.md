@@ -15,7 +15,7 @@ Script injected in-line in every HTML pages.
 It is done in the `tweakHTML` function in the proxy.
 
 That script mainly edits the prototypes of HTML elements to rewrite getters/setters
-for some attributes such as `src` for `<img>`, and so on...
+for some attributes such as `src` for `HTMLImageElement`, and so on...
 
 ## `first-load.ts`
 
@@ -23,3 +23,5 @@ Script that should be injected in the page asking for user to wait until service
 
 It, in fact, installs the service worker correctly and redirects the user
 to the exact same page but with the additional `__surfonxy_ready=1` search parameter to prevent running through that page once again.
+
+Bundled and used inside [`proxy/templates/first-load.ts`](../proxy/templates/first-load.ts) that'll then be injected.
